@@ -6,12 +6,15 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    options.RoutePrefix = "docs";
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "PingApi v1");
+});
 
-app.MapGet("/ping", () => Results.Ok(new { message = "pong" }));
+app.MapGet("/ping", () => Results.Ok(new { 
+    message = "Hola, este mensaje vive gracias a APS.NET Core 9" 
+}));
 
 app.Run();
