@@ -14,9 +14,6 @@
 **/publish/
 **/Properties/launchSettings.json
 
-# Entity Framework
-**/Migrations/*.cs
-
 # Variables de entorno
 .env
 .env.local

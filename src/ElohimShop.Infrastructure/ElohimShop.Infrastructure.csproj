@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\ElohimShop.Domain\ElohimShop.Domain.csproj" />
     <ProjectReference Include="..\ElohimShop.Application\ElohimShop.Application.csproj" />
   </ItemGroup>
 
