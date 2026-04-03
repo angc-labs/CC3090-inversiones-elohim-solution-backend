@@ -72,7 +72,9 @@ public class ClientAuthService : IClientAuthService
     private (string Token, DateTime ExpiresAt) GenerateJwt(Cliente cliente)
     {
         var jwtSection = _configuration.GetSection("Jwt");
-        var key = jwtSection["Key"] ?? throw new InvalidOperationException("Jwt:Key is required.");
+        var key = _configuration["JWT_KEY"]
+            ?? jwtSection["Key"]
+            ?? throw new InvalidOperationException("JWT key is required. Configure JWT_KEY or Jwt:Key.");
         var issuer = jwtSection["Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer is required.");
         var audience = jwtSection["Audience"] ?? throw new InvalidOperationException("Jwt:Audience is required.");
 
