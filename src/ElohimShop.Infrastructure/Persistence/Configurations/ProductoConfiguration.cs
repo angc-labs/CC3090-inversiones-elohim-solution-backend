@@ -47,7 +47,7 @@ public class ProductoConfiguration : IEntityTypeConfiguration<Producto>
 
         builder.Property(p => p.FechaVencimiento)
             .IsRequired()
-            .HasColumnType("timestamp")
+            .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_vencimiento");
 
         builder.Property(p => p.ImagenPrincipal)
@@ -56,12 +56,12 @@ public class ProductoConfiguration : IEntityTypeConfiguration<Producto>
 
         builder.Property(p => p.FechaCreacion)
             .IsRequired()
-            .HasColumnType("timestamp")
+            .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_creacion");
 
         builder.Property(p => p.FechaActualizacion)
             .IsRequired()
-            .HasColumnType("timestamp")
+            .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_actualizacion");
 
         builder.HasOne(p => p.Marca)

@@ -29,7 +29,7 @@ public class ReservacionConfiguration : IEntityTypeConfiguration<Reservacion>
 
         builder.Property(r => r.FechaRenovacion)
             .IsRequired()
-            .HasColumnType("timestamp")
+            .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_renovacion");
 
         builder.Property(r => r.EstadoRenovacion)
@@ -56,7 +56,7 @@ public class ReservacionConfiguration : IEntityTypeConfiguration<Reservacion>
 
         builder.Property(r => r.FechaLimiteRetiro)
             .IsRequired()
-            .HasColumnType("timestamp")
+            .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_limite_retiro");
 
         builder.HasOne(r => r.Cliente)

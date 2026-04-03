@@ -21,6 +21,7 @@ public class ElohimShopDbContext : DbContext
     public virtual DbSet<Reservacion> Reservaciones { get; set; } = null!;
     public virtual DbSet<DetalleReservacion> DetallesReservacion { get; set; } = null!;
     public virtual DbSet<Venta> Ventas { get; set; } = null!;
+    public virtual DbSet<TokenRevocado> TokensRevocados { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

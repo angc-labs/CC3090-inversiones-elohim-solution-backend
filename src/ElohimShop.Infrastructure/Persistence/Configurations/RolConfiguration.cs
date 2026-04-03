@@ -24,7 +24,7 @@ public class RolConfiguration : IEntityTypeConfiguration<Rol>
             .HasColumnType("text");
 
         builder.Property(r => r.FechaCreacion)
-            .HasColumnType("timestamp");
+            .HasColumnType("timestamp with time zone");
 
         builder.HasMany(r => r.Administradores)
             .WithOne(a => a.Rol)

@@ -3,6 +3,7 @@ using System;
 using ElohimShop.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ElohimShop.Infrastructure.Migrations
 {
     [DbContext(typeof(ElohimShopDbContext))]
-    partial class ElohimShopDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260403024808_AddClientJwtAuthAndTokenRevocation")]
+    partial class AddClientJwtAuthAndTokenRevocation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -48,7 +51,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnType("varchar(255)");
 
                     b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("fecha_creacion");
 
                     b.Property<string>("IdRol")
@@ -85,7 +88,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("FechaCreacion")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp");
 
                     b.Property<string>("NombreCategoria")
                         .IsRequired()
@@ -127,7 +130,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("estado_cuenta");
 
                     b.Property<DateTime>("FechaRegistro")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -161,7 +164,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("id_consulta");
 
                     b.Property<DateTime>("FechaConsulta")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("fecha_consulta");
 
                     b.Property<string>("IdCliente")
@@ -291,15 +294,15 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime>("FechaActualizacion")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("fecha_actualizacion");
 
                     b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("fecha_creacion");
 
                     b.Property<DateTime>("FechaVencimiento")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("fecha_vencimiento");
 
                     b.Property<string>("IdMarca")
@@ -360,11 +363,11 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("estado_renovacion");
 
                     b.Property<DateTime>("FechaLimiteRetiro")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("fecha_limite_retiro");
 
                     b.Property<DateTime>("FechaRenovacion")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("fecha_renovacion");
 
                     b.Property<string>("MetodoPagoId")
@@ -404,7 +407,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("FechaCreacion")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -427,7 +430,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -452,7 +455,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("cliente_id");
 
                     b.Property<DateTime>("ExpiraEn")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("expira_en");
 
                     b.Property<string>("Jti")
@@ -462,7 +465,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("jti");
 
                     b.Property<DateTime>("RevocadoEn")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("revocado_en");
 
                     b.HasKey("Id");
@@ -489,7 +492,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("estado_venta");
 
                     b.Property<DateTime>("FechaVenta")
-                        .HasColumnType("timestamp with time zone")
+                        .HasColumnType("timestamp")
                         .HasColumnName("fecha_venta");
 
                     b.Property<decimal>("MontoTotal")

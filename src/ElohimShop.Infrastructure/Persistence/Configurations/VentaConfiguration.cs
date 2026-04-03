@@ -33,7 +33,7 @@ public class VentaConfiguration : IEntityTypeConfiguration<Venta>
 
         builder.Property(v => v.FechaVenta)
             .IsRequired()
-            .HasColumnType("timestamp")
+            .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_venta");
 
         builder.Property(v => v.TipoComprobante)

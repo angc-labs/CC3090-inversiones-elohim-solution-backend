@@ -29,7 +29,7 @@ public class ConsultaConfiguration : IEntityTypeConfiguration<Consulta>
 
         builder.Property(co => co.FechaConsulta)
             .IsRequired()
-            .HasColumnType("timestamp")
+            .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_consulta");
 
         builder.HasOne(co => co.Cliente)

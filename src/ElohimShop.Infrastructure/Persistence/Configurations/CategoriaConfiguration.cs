@@ -25,7 +25,7 @@ public class CategoriaConfiguration : IEntityTypeConfiguration<Categoria>
             .HasColumnType("text");
 
         builder.Property(c => c.FechaCreacion)
-            .HasColumnType("timestamp");
+            .HasColumnType("timestamp with time zone");
 
         builder.HasMany(c => c.Productos)
             .WithOne(p => p.Categoria)

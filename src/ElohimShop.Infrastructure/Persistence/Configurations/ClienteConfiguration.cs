@@ -44,7 +44,7 @@ public class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
 
         builder.Property(c => c.FechaRegistro)
             .IsRequired()
-            .HasColumnType("timestamp");
+            .HasColumnType("timestamp with time zone");
 
         builder.Property(c => c.EstadoCuenta)
             .IsRequired()

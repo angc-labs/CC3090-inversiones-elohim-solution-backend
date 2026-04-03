@@ -26,7 +26,8 @@ public class DetalleReservacionConfiguration : IEntityTypeConfiguration<DetalleR
             .HasColumnName("producto_id");
 
         builder.Property(dr => dr.Cantidad)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnName("cantidad");
 
         builder.Property(dr => dr.PrecioUnitario)
             .IsRequired()
@@ -35,6 +36,7 @@ public class DetalleReservacionConfiguration : IEntityTypeConfiguration<DetalleR
 
         builder.Property(dr => dr.Subtotal)
             .IsRequired()
+            .HasColumnName("subtotal")
             .HasColumnType("numeric")
             .HasComputedColumnSql("cantidad * precio_unitario", stored: true);
 

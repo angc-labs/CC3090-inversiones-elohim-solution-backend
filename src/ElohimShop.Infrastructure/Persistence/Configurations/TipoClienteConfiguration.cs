@@ -26,7 +26,7 @@ public class TipoClienteConfiguration : IEntityTypeConfiguration<TipoCliente>
 
         builder.Property(tc => tc.FechaCreacion)
             .IsRequired()
-            .HasColumnType("timestamp");
+            .HasColumnType("timestamp with time zone");
 
         builder.HasMany(tc => tc.Clientes)
             .WithOne(c => c.TipoCliente)

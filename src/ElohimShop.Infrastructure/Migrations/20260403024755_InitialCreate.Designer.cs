@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ElohimShop.Infrastructure.Migrations
 {
     [DbContext(typeof(ElohimShopDbContext))]
-    [Migration("20260402143754_InitialCreate")]
+    [Migration("20260403024755_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -196,7 +196,8 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("id_details");
 
                     b.Property<int>("Cantidad")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("cantidad");
 
                     b.Property<decimal>("PrecioUnitario")
                         .HasColumnType("numeric")
@@ -215,6 +216,7 @@ namespace ElohimShop.Infrastructure.Migrations
                     b.Property<decimal>("Subtotal")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("numeric")
+                        .HasColumnName("subtotal")
                         .HasComputedColumnSql("cantidad * precio_unitario", true);
 
                     b.HasKey("IdDetails");
@@ -440,6 +442,42 @@ namespace ElohimShop.Infrastructure.Migrations
                     b.ToTable("TipoCliente", (string)null);
                 });
 
+            modelBuilder.Entity("ElohimShop.Domain.Entities.TokenRevocado", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("ClienteId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("cliente_id");
+
+                    b.Property<DateTime>("ExpiraEn")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("expira_en");
+
+                    b.Property<string>("Jti")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("jti");
+
+                    b.Property<DateTime>("RevocadoEn")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("revocado_en");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId");
+
+                    b.HasIndex("Jti")
+                        .IsUnique();
+
+                    b.ToTable("TokenRevocado", (string)null);
+                });
+
             modelBuilder.Entity("ElohimShop.Domain.Entities.Venta", b =>
                 {
                     b.Property<string>("IdVenta")
@@ -575,6 +613,17 @@ namespace ElohimShop.Infrastructure.Migrations
                     b.Navigation("Cliente");
 
                     b.Navigation("MetodoPago");
+                });
+
+            modelBuilder.Entity("ElohimShop.Domain.Entities.TokenRevocado", b =>
+                {
+                    b.HasOne("ElohimShop.Domain.Entities.Cliente", "Cliente")
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cliente");
                 });
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.Venta", b =>

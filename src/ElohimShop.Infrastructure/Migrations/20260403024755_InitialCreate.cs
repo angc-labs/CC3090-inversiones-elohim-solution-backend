@@ -224,15 +224,36 @@ namespace ElohimShop.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TokenRevocado",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    jti = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    cliente_id = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    expira_en = table.Column<DateTime>(type: "timestamp", nullable: false),
+                    revocado_en = table.Column<DateTime>(type: "timestamp", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TokenRevocado", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TokenRevocado_Cliente_cliente_id",
+                        column: x => x.cliente_id,
+                        principalTable: "Cliente",
+                        principalColumn: "id_cliente",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "DetalleReservacion",
                 columns: table => new
                 {
                     id_details = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     reservacion_id = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     producto_id = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
-                    Cantidad = table.Column<int>(type: "integer", nullable: false),
+                    cantidad = table.Column<int>(type: "integer", nullable: false),
                     precio_unitario = table.Column<decimal>(type: "numeric", nullable: false),
-                    Subtotal = table.Column<decimal>(type: "numeric", nullable: false, computedColumnSql: "cantidad * precio_unitario", stored: true)
+                    subtotal = table.Column<decimal>(type: "numeric", nullable: false, computedColumnSql: "cantidad * precio_unitario", stored: true)
                 },
                 constraints: table =>
                 {
@@ -355,6 +376,17 @@ namespace ElohimShop.Infrastructure.Migrations
                 column: "metodo_pago_id");
 
             migrationBuilder.CreateIndex(
+                name: "IX_TokenRevocado_cliente_id",
+                table: "TokenRevocado",
+                column: "cliente_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TokenRevocado_jti",
+                table: "TokenRevocado",
+                column: "jti",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Venta_reservacion_id",
                 table: "Venta",
                 column: "reservacion_id",
@@ -374,6 +406,9 @@ namespace ElohimShop.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "DetalleReservacion");
+
+            migrationBuilder.DropTable(
+                name: "TokenRevocado");
 
             migrationBuilder.DropTable(
                 name: "Venta");

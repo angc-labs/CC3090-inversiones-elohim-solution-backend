@@ -49,7 +49,7 @@ public class AdministradorConfiguration : IEntityTypeConfiguration<Administrador
 
         builder.Property(a => a.FechaCreacion)
             .IsRequired()
-            .HasColumnType("timestamp")
+            .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_creacion");
 
         builder.HasOne(a => a.Rol)
