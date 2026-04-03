@@ -1,0 +1,40 @@
+# Endpoints API
+
+Base path: `/api/client`
+
+## POST `/api/client/register`
+Registra un cliente nuevo y devuelve JWT.
+
+Request body:
+- `correo` (string, requerido)
+- `nombre` (string, requerido)
+- `contrasena` (string, requerido)
+- `apellido` (string, opcional)
+- `telefono` (string, opcional)
+- `direccion` (string, opcional)
+- `tipoClienteId` (string, opcional)
+
+Response `200 OK`:
+- `clienteId`
+- `correo`
+- `nombre`
+- `token`
+- `expiraEn` (vigencia: 1 mes)
+
+Response `409 Conflict`:
+- correo ya registrado
+
+## POST `/api/client/logout`
+Revoca el JWT actual.
+
+Headers:
+- `Authorization: Bearer <token>`
+
+Response `204 No Content`
+
+Response `401 Unauthorized`:
+- token inválido, expirado o revocado
+
+## Documentación
+- Swagger UI: `/swagger`
+- OpenAPI JSON: `/swagger/v1/swagger.json`
