@@ -12,7 +12,6 @@ Request body:
 - `apellido` (string, opcional)
 - `telefono` (string, opcional)
 - `direccion` (string, opcional)
-- `tipoClienteId` (string, opcional)
 
 Response `200 OK`:
 - `clienteId`
