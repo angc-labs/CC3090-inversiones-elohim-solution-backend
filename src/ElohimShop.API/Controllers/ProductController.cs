@@ -51,6 +51,28 @@ public class ProductController : ControllerBase
     }
 
     /// <summary>
+    /// Crea multiples productos en un solo lote.
+    /// </summary>
+    /// <param name="requests">Lista de productos a crear.</param>
+    /// <param name="cancellationToken">Token de cancelacion.</param>
+    /// <returns>Resumen de productos creados y errores por registro.</returns>
+    /// <response code="200">Lote procesado correctamente.</response>
+    /// <response code="400">Solicitud invalida.</response>
+    [HttpPost("bulk")]
+    [ProducesResponseType(typeof(BulkCreateProductsResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateBulk([FromBody] IReadOnlyCollection<CreateProductRequestDto> requests, CancellationToken cancellationToken)
+    {
+        if (requests is null || requests.Count == 0)
+        {
+            return BadRequest(new { message = "Debes enviar al menos un producto." });
+        }
+
+        var result = await _productService.CreateManyAsync(requests, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Obtiene todos los productos registrados.
     /// </summary>
     /// <param name="cancellationToken">Token de cancelacion.</param>

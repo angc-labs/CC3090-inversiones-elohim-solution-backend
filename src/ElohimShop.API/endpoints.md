@@ -87,6 +87,23 @@ Response `400 Bad Request`:
 Response `409 Conflict`:
 - codigo de producto ya registrado
 
+## POST `/api/product/bulk`
+Crea multiples productos en una sola solicitud.
+
+Request body:
+- arreglo de objetos con los mismos campos de `POST /api/product`
+
+Response `200 OK`:
+- `totalRecibidos`
+- `totalCreados`
+- `totalFallidos`
+- `creados` (arreglo de productos creados)
+- `errores` (arreglo con `codigoProducto` y `error`)
+
+Notas:
+- valida relaciones (`idMarca`, `categoriaId`) antes de insertar
+- si un registro falla, los demas validos se insertan igual
+
 ## GET `/api/product`
 Consulta todos los productos registrados.
 
