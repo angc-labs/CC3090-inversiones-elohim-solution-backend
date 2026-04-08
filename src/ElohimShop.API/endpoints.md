@@ -23,6 +23,23 @@ Response `200 OK`:
 Response `409 Conflict`:
 - correo ya registrado
 
+## POST `/api/client/login`
+Inicia sesión con un cliente existente y devuelve JWT.
+
+Request body:
+- `correo` (string, requerido)
+- `contrasena` (string, requerido)
+
+Response `200 OK`:
+- `clienteId`
+- `correo`
+- `nombre`
+- `token`
+- `expiraEn` (vigencia: 1 mes)
+
+Response `401 Unauthorized`:
+- credenciales inválidas o cuenta inactiva
+
 ## POST `/api/client/logout`
 Revoca el JWT actual.
 

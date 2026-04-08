@@ -4,5 +4,7 @@ public interface IClientAuthService
 {
     Task<AuthResponseDto> RegisterAsync(RegisterClientRequestDto request, CancellationToken cancellationToken);
 
+    Task<AuthResponseDto> LoginAsync(LoginClientRequestDto request, CancellationToken cancellationToken);
+
     Task LogoutAsync(string jti, string clienteId, DateTime expiresAt, CancellationToken cancellationToken);
 }
