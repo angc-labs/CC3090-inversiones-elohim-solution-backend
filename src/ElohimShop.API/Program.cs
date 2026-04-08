@@ -1,6 +1,8 @@
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Application.Auth;
+using ElohimShop.Application.Products;
 using ElohimShop.Infrastructure.Auth;
+using ElohimShop.Infrastructure.Products;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
@@ -45,6 +47,7 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddScoped<IClientAuthService, ClientAuthService>();
 builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
+builder.Services.AddScoped<IProductService, ProductService>();
 
 // Register DbContext with PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
