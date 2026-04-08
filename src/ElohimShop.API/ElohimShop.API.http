@@ -1,6 +1,53 @@
 @ElohimShop.API_HostAddress = http://localhost:5025
 
-GET {{ElohimShop.API_HostAddress}}/weatherforecast/
+GET {{ElohimShop.API_HostAddress}}/api/product
 Accept: application/json
+
+###
+
+POST {{ElohimShop.API_HostAddress}}/api/product
+Content-Type: application/json
+
+{
+	"codigoProducto": "P-001",
+	"nombreProducto": "Leche Entera 1L",
+	"precio": 12000,
+	"stockActual": 20,
+	"descripcion": "Producto de prueba",
+	"idMarca": null,
+	"categoriaId": null,
+	"fechaVencimiento": "2027-01-01T00:00:00Z",
+	"imagenPrincipal": null
+}
+
+###
+
+POST {{ElohimShop.API_HostAddress}}/api/product/bulk
+Content-Type: application/json
+
+[
+	{
+		"codigoProducto": "P-002",
+		"nombreProducto": "Arroz 1kg",
+		"precio": 8500,
+		"stockActual": 40,
+		"descripcion": "Lote inicial",
+		"idMarca": null,
+		"categoriaId": null,
+		"fechaVencimiento": "2027-06-01T00:00:00Z",
+		"imagenPrincipal": null
+	},
+	{
+		"codigoProducto": "P-003",
+		"nombreProducto": "Frijol 1kg",
+		"precio": 9000,
+		"stockActual": 35,
+		"descripcion": "Lote inicial",
+		"idMarca": null,
+		"categoriaId": null,
+		"fechaVencimiento": "2027-06-01T00:00:00Z",
+		"imagenPrincipal": null
+	}
+]
 
 ###
