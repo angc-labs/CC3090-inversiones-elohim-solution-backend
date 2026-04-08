@@ -64,6 +64,28 @@ public class ClientAuthService : IClientAuthService
             token.ExpiresAt);
     }
 
+    public async Task<AuthResponseDto> LoginAsync(LoginClientRequestDto request, CancellationToken cancellationToken)
+    {
+        var correo = request.Correo.Trim();
+
+        var cliente = await _dbContext.Clientes
+            .FirstOrDefaultAsync(cliente => cliente.Correo == correo, cancellationToken);
+
+        if (cliente is null || !cliente.EstadoCuenta || !PasswordHashing.Verify(request.Contrasena, cliente.Contrasena))
+        {
+            throw new UnauthorizedAccessException("Credenciales inválidas.");
+        }
+
+        var token = GenerateJwt(cliente);
+
+        return new AuthResponseDto(
+            cliente.IdCliente,
+            cliente.Correo,
+            cliente.Nombre,
+            token.Token,
+            token.ExpiresAt);
+    }
+
     public Task LogoutAsync(string jti, string clienteId, DateTime expiresAt, CancellationToken cancellationToken)
     {
         return _tokenRevocationService.RevokeTokenAsync(jti, clienteId, expiresAt, cancellationToken);
