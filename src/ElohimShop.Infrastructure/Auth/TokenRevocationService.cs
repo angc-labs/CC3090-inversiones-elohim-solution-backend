@@ -19,7 +19,7 @@ public class TokenRevocationService : ITokenRevocationService
         return _dbContext.TokensRevocados.AnyAsync(token => token.Jti == jti, cancellationToken);
     }
 
-    public async Task RevokeTokenAsync(string jti, string clienteId, DateTime expiresAt, CancellationToken cancellationToken)
+    public async Task RevokeTokenAsync(string jti, string usuarioId, DateTime expiresAt, CancellationToken cancellationToken)
     {
         var alreadyRevoked = await _dbContext.TokensRevocados.AnyAsync(token => token.Jti == jti, cancellationToken);
 
@@ -28,7 +28,7 @@ public class TokenRevocationService : ITokenRevocationService
             return;
         }
 
-        var tokenRevocado = TokenRevocado.Crear(jti, clienteId, expiresAt);
+        var tokenRevocado = TokenRevocado.Crear(jti, usuarioId, expiresAt);
 
         _dbContext.TokensRevocados.Add(tokenRevocado);
         await _dbContext.SaveChangesAsync(cancellationToken);

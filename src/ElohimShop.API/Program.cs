@@ -1,40 +1,51 @@
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Application.Auth;
 using ElohimShop.Application.Products;
+using ElohimShop.Application.Usuario;
+using ElohimShop.Application.Catalog;
 using ElohimShop.Infrastructure.Auth;
 using ElohimShop.Infrastructure.Products;
+using ElohimShop.Infrastructure.User;
+using ElohimShop.Infrastructure.Catalog;
+using ElohimShop.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.OpenApi;
+using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
-builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.OpenApiInfo
     {
         Title = "ElohimShop API",
         Version = "v1",
         Description = "API de autenticación y operaciones para clientes de Elohim Shop"
     });
 
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Type = SecuritySchemeType.Http,
+        Type = Microsoft.OpenApi.SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        In = ParameterLocation.Header,
+        In = Microsoft.OpenApi.ParameterLocation.Header,
         Description = "Ingrese el token JWT con el esquema Bearer. Ejemplo: Bearer {token}"
+    });
+
+    options.AddSecurityRequirement(_ => new Microsoft.OpenApi.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer"),
+            new List<string>()
+        }
     });
 
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -45,9 +56,12 @@ builder.Services.AddSwaggerGen(options =>
     }
 });
 
-builder.Services.AddScoped<IClientAuthService, ClientAuthService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IUsuarioService, ElohimShop.Infrastructure.User.UsuarioService>();
+builder.Services.AddScoped<ICatalogService, CatalogService>();
+builder.Services.AddScoped<IPasswordHashing, PasswordHashingService>();
 
 // Register DbContext with PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -56,12 +70,17 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<ElohimShopDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+// JWT Configuration
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtKey = builder.Configuration["JWT_KEY"]
+var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
     ?? jwtSection["Key"]
-    ?? throw new InvalidOperationException("JWT key is required. Configure JWT_KEY or Jwt:Key.");
-var jwtIssuer = jwtSection["Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer is required.");
-var jwtAudience = jwtSection["Audience"] ?? throw new InvalidOperationException("Jwt:Audience is required.");
+    ?? throw new InvalidOperationException("JWT Key no configurada.");
+var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
+    ?? jwtSection["Issuer"]
+    ?? "ElohimShop";
+var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
+    ?? jwtSection["Audience"]
+    ?? "ElohimShop.Clients";
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -84,7 +103,8 @@ builder.Services
         {
             OnTokenValidated = async context =>
             {
-                var revocationService = context.HttpContext.RequestServices.GetRequiredService<ITokenRevocationService>();
+                var revocationService = context.HttpContext.RequestServices
+                    .GetRequiredService<ITokenRevocationService>();
                 var jti = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
 
                 if (string.IsNullOrWhiteSpace(jti))
@@ -108,7 +128,6 @@ var app = builder.Build();
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
