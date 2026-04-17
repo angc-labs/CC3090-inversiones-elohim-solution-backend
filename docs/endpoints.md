@@ -21,7 +21,7 @@
 
 Registra un nuevo usuario (cliente o administrador) y devuelve un JWT.
 
-> ⚠️ El registro de administradores requiere un JWT con rol `administrador` en el header. El registro de clientes es público.
+>  El registro de administradores requiere un JWT con rol `administrador` en el header. El registro de clientes es público.
 
 **Request body — cliente:**
 ```json
@@ -112,7 +112,7 @@ Inicia sesión con cualquier tipo de usuario y devuelve un JWT.
 }
 ```
 
-> ℹ️ `rol` solo viene poblado si `tipoUsuario` es `administrador`. `tipoCliente` solo viene poblado si `tipoUsuario` es `cliente`.
+>  `rol` solo viene poblado si `tipoUsuario` es `administrador`. `tipoCliente` solo viene poblado si `tipoUsuario` es `cliente`.
 
 **Response `401 Unauthorized`:**
 ```json
@@ -161,7 +161,7 @@ Envía un correo con enlace de recuperación de contraseña.
 }
 ```
 
-> ℹ️ La respuesta es genérica para no revelar si el correo está registrado.
+>  La respuesta es genérica para no revelar si el correo está registrado.
 
 ---
 
@@ -499,7 +499,7 @@ Authorization: Bearer <token>
 }
 ```
 
-> ℹ️ Si un registro falla, los demás válidos se insertan de todos modos.
+>  Si un registro falla, los demás válidos se insertan de todos modos.
 
 ---
 
@@ -657,7 +657,7 @@ Authorization: Bearer <token>
 }
 ```
 
-> ℹ️ El carrito activo del usuario se convierte automáticamente en la reservación. No es necesario enviar los ítems.
+>  El carrito activo del usuario se convierte automáticamente en la reservación. No es necesario enviar los ítems.
 
 **Response `201 Created`:**
 ```json
@@ -695,7 +695,7 @@ Authorization: Bearer <token>
 
 Obtiene el historial de reservaciones del usuario autenticado.
 
-> ℹ️ Si el token pertenece a un `administrador`, devuelve todas las reservaciones del sistema. Si pertenece a un `cliente`, devuelve solo las suyas.
+>  Si el token pertenece a un `administrador`, devuelve todas las reservaciones del sistema. Si pertenece a un `cliente`, devuelve solo las suyas.
 
 **Headers:**
 ```
@@ -775,7 +775,7 @@ Authorization: Bearer <token>
 
 ## 6. Pagos (Stripe)
 
-> ⚠️ **Variables de entorno requeridas:**
+>  **Variables de entorno requeridas:**
 > - `STRIPE_SECRET_KEY` — solo en el backend, nunca exponer
 > - `STRIPE_PUBLISHABLE_KEY` — se entrega al frontend
 > - `STRIPE_WEBHOOK_SECRET` — solo en el backend, para validar webhooks
@@ -808,7 +808,7 @@ Authorization: Bearer <token>
 }
 ```
 
-> ℹ️ El frontend usa el `clientSecret` con Stripe.js para capturar los datos de tarjeta directamente en Stripe. Los datos de tarjeta **nunca pasan por tu servidor.**
+>  El frontend usa el `clientSecret` con Stripe.js para capturar los datos de tarjeta directamente en Stripe. Los datos de tarjeta **nunca pasan por tu servidor.**
 
 **Response `400 Bad Request`:**
 ```json
@@ -821,7 +821,7 @@ Authorization: Bearer <token>
 
 ### POST `/api/pagos/webhook`
 
-⚠️ **Endpoint crítico.** Stripe llama automáticamente este endpoint cuando ocurre un evento de pago. Aquí se confirma la orden en la base de datos.
+ **Endpoint crítico.** Stripe llama automáticamente este endpoint cuando ocurre un evento de pago. Aquí se confirma la orden en la base de datos.
 
 > Este endpoint **no requiere JWT**. La autenticación se hace validando la firma del header `Stripe-Signature` con el `STRIPE_WEBHOOK_SECRET`.
 
@@ -855,7 +855,7 @@ Content-Type: application/json
 }
 ```
 
-> ⚠️ Si este endpoint responde con cualquier código que no sea 2xx, Stripe reintentará el evento hasta 3 días.
+>  Si este endpoint responde con cualquier código que no sea 2xx, Stripe reintentará el evento hasta 3 días.
 
 ---
 
@@ -1022,7 +1022,3 @@ Authorization: Bearer <token>
 | `404` | Not Found — recurso no encontrado |
 | `409` | Conflict — recurso duplicado (correo, código de producto) |
 | `500` | Internal Server Error — error inesperado del servidor |
-
----
-
-*Documentación generada para Esmirna Tienda Online — Inversiones Elohim, S.A.*
