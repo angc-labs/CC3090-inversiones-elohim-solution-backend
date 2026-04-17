@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ElohimShop.Infrastructure.Migrations
 {
     [DbContext(typeof(ElohimShopDbContext))]
-    [Migration("20260403024755_InitialCreate")]
+    [Migration("20260417020236_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -25,57 +25,22 @@ namespace ElohimShop.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("ElohimShop.Domain.Entities.Administrador", b =>
+            modelBuilder.Entity("ElohimShop.Domain.Entities.AdministradorPerfil", b =>
                 {
-                    b.Property<string>("IdUsuario")
+                    b.Property<string>("UsuarioId")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
-                        .HasColumnName("id_usuario");
+                        .HasColumnName("usuario_id");
 
-                    b.Property<string>("Apellido")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("Contrasena")
+                    b.Property<string>("Rol")
                         .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("rol");
 
-                    b.Property<string>("Correo")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                    b.HasKey("UsuarioId");
 
-                    b.Property<string>("Estado")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp")
-                        .HasColumnName("fecha_creacion");
-
-                    b.Property<string>("IdRol")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("id_rol");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("Telefono")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.HasKey("IdUsuario");
-
-                    b.HasIndex("Correo")
-                        .IsUnique();
-
-                    b.HasIndex("IdRol");
-
-                    b.ToTable("Administrador", (string)null);
+                    b.ToTable("AdministradorPerfil", (string)null);
                 });
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.Categoria", b =>
@@ -88,7 +53,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("FechaCreacion")
-                        .HasColumnType("timestamp");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("NombreCategoria")
                         .IsRequired()
@@ -101,59 +66,26 @@ namespace ElohimShop.Infrastructure.Migrations
                     b.ToTable("Categoria", (string)null);
                 });
 
-            modelBuilder.Entity("ElohimShop.Domain.Entities.Cliente", b =>
+            modelBuilder.Entity("ElohimShop.Domain.Entities.ClientePerfil", b =>
                 {
-                    b.Property<string>("IdCliente")
+                    b.Property<string>("UsuarioId")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
-                        .HasColumnName("id_cliente");
-
-                    b.Property<string>("Apellido")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("Contrasena")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<string>("Correo")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnName("usuario_id");
 
                     b.Property<string>("Direccion")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("direccion");
 
-                    b.Property<bool>("EstadoCuenta")
-                        .HasColumnType("boolean")
-                        .HasColumnName("estado_cuenta");
-
-                    b.Property<DateTime>("FechaRegistro")
-                        .HasColumnType("timestamp");
-
-                    b.Property<string>("Nombre")
+                    b.Property<string>("TipoCliente")
                         .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tipo_cliente");
 
-                    b.Property<string>("Telefono")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                    b.HasKey("UsuarioId");
 
-                    b.Property<string>("TipoClienteId")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("tipo_cliente_id");
-
-                    b.HasKey("IdCliente");
-
-                    b.HasIndex("Correo")
-                        .IsUnique();
-
-                    b.HasIndex("TipoClienteId");
-
-                    b.ToTable("Cliente", (string)null);
+                    b.ToTable("ClientePerfil", (string)null);
                 });
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.Consulta", b =>
@@ -164,7 +96,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("id_consulta");
 
                     b.Property<DateTime>("FechaConsulta")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_consulta");
 
                     b.Property<string>("IdCliente")
@@ -294,15 +226,15 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime>("FechaActualizacion")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_actualizacion");
 
                     b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_creacion");
 
                     b.Property<DateTime>("FechaVencimiento")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_vencimiento");
 
                     b.Property<string>("IdMarca")
@@ -358,16 +290,17 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("codigo_reservacion");
 
                     b.Property<string>("EstadoRenovacion")
+                        .IsRequired()
                         .HasMaxLength(60)
                         .HasColumnType("varchar(60)")
                         .HasColumnName("estado_renovacion");
 
                     b.Property<DateTime>("FechaLimiteRetiro")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_limite_retiro");
 
                     b.Property<DateTime>("FechaRenovacion")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_renovacion");
 
                     b.Property<string>("MetodoPagoId")
@@ -397,65 +330,14 @@ namespace ElohimShop.Infrastructure.Migrations
                     b.ToTable("Reservacion", (string)null);
                 });
 
-            modelBuilder.Entity("ElohimShop.Domain.Entities.Rol", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<string>("Descripcion")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("FechaCreacion")
-                        .HasColumnType("timestamp");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Rol", (string)null);
-                });
-
-            modelBuilder.Entity("ElohimShop.Domain.Entities.TipoCliente", b =>
-                {
-                    b.Property<string>("IdTipo")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("id_tipo");
-
-                    b.Property<string>("Descripcion")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(15)
-                        .HasColumnType("character varying(15)");
-
-                    b.HasKey("IdTipo");
-
-                    b.ToTable("TipoCliente", (string)null);
-                });
-
             modelBuilder.Entity("ElohimShop.Domain.Entities.TokenRevocado", b =>
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<string>("ClienteId")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("cliente_id");
-
                     b.Property<DateTime>("ExpiraEn")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("expira_en");
 
                     b.Property<string>("Jti")
@@ -465,17 +347,82 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("jti");
 
                     b.Property<DateTime>("RevocadoEn")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("revocado_en");
 
-                    b.HasKey("Id");
+                    b.Property<string>("UsuarioId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("usuario_id");
 
-                    b.HasIndex("ClienteId");
+                    b.HasKey("Id");
 
                     b.HasIndex("Jti")
                         .IsUnique();
 
+                    b.HasIndex("UsuarioId");
+
                     b.ToTable("TokenRevocado", (string)null);
+                });
+
+            modelBuilder.Entity("ElohimShop.Domain.Entities.Usuario", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Apellido")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("apellido");
+
+                    b.Property<string>("Contrasena")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("contrasena");
+
+                    b.Property<string>("Correo")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("correo");
+
+                    b.Property<bool>("Estado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("estado");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_creacion");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("nombre");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("telefono");
+
+                    b.Property<string>("TipoUsuario")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tipo_usuario");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Correo")
+                        .IsUnique();
+
+                    b.ToTable("Usuario", (string)null);
                 });
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.Venta", b =>
@@ -492,7 +439,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("estado_venta");
 
                     b.Property<DateTime>("FechaVenta")
-                        .HasColumnType("timestamp")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_venta");
 
                     b.Property<decimal>("MontoTotal")
@@ -525,36 +472,38 @@ namespace ElohimShop.Infrastructure.Migrations
                     b.ToTable("Venta", (string)null);
                 });
 
-            modelBuilder.Entity("ElohimShop.Domain.Entities.Administrador", b =>
+            modelBuilder.Entity("ElohimShop.Domain.Entities.AdministradorPerfil", b =>
                 {
-                    b.HasOne("ElohimShop.Domain.Entities.Rol", "Rol")
-                        .WithMany("Administradores")
-                        .HasForeignKey("IdRol")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("ElohimShop.Domain.Entities.Usuario", "Usuario")
+                        .WithOne("AdministradorPerfil")
+                        .HasForeignKey("ElohimShop.Domain.Entities.AdministradorPerfil", "UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.Navigation("Rol");
+                    b.Navigation("Usuario");
                 });
 
-            modelBuilder.Entity("ElohimShop.Domain.Entities.Cliente", b =>
+            modelBuilder.Entity("ElohimShop.Domain.Entities.ClientePerfil", b =>
                 {
-                    b.HasOne("ElohimShop.Domain.Entities.TipoCliente", "TipoCliente")
-                        .WithMany("Clientes")
-                        .HasForeignKey("TipoClienteId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("ElohimShop.Domain.Entities.Usuario", "Usuario")
+                        .WithOne("ClientePerfil")
+                        .HasForeignKey("ElohimShop.Domain.Entities.ClientePerfil", "UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.Navigation("TipoCliente");
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.Consulta", b =>
                 {
-                    b.HasOne("ElohimShop.Domain.Entities.Cliente", "Cliente")
-                        .WithMany("Consultas")
+                    b.HasOne("ElohimShop.Domain.Entities.Usuario", "Cliente")
+                        .WithMany("ConsultasCliente")
                         .HasForeignKey("IdCliente")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ElohimShop.Domain.Entities.Administrador", "Administrador")
-                        .WithMany("Consultas")
+                    b.HasOne("ElohimShop.Domain.Entities.Usuario", "Administrador")
+                        .WithMany("ConsultasAdministrador")
                         .HasForeignKey("IdUsuario")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -600,7 +549,7 @@ namespace ElohimShop.Infrastructure.Migrations
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.Reservacion", b =>
                 {
-                    b.HasOne("ElohimShop.Domain.Entities.Cliente", "Cliente")
+                    b.HasOne("ElohimShop.Domain.Entities.Usuario", "Cliente")
                         .WithMany("Reservaciones")
                         .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -617,13 +566,13 @@ namespace ElohimShop.Infrastructure.Migrations
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.TokenRevocado", b =>
                 {
-                    b.HasOne("ElohimShop.Domain.Entities.Cliente", "Cliente")
+                    b.HasOne("ElohimShop.Domain.Entities.Usuario", "Usuario")
                         .WithMany()
-                        .HasForeignKey("ClienteId")
+                        .HasForeignKey("UsuarioId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Cliente");
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.Venta", b =>
@@ -633,7 +582,7 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasForeignKey("ElohimShop.Domain.Entities.Venta", "ReservacionId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("ElohimShop.Domain.Entities.Administrador", "UsuarioCajero")
+                    b.HasOne("ElohimShop.Domain.Entities.Usuario", "UsuarioCajero")
                         .WithMany("Ventas")
                         .HasForeignKey("UsuarioCajeroId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -643,23 +592,9 @@ namespace ElohimShop.Infrastructure.Migrations
                     b.Navigation("UsuarioCajero");
                 });
 
-            modelBuilder.Entity("ElohimShop.Domain.Entities.Administrador", b =>
-                {
-                    b.Navigation("Consultas");
-
-                    b.Navigation("Ventas");
-                });
-
             modelBuilder.Entity("ElohimShop.Domain.Entities.Categoria", b =>
                 {
                     b.Navigation("Productos");
-                });
-
-            modelBuilder.Entity("ElohimShop.Domain.Entities.Cliente", b =>
-                {
-                    b.Navigation("Consultas");
-
-                    b.Navigation("Reservaciones");
                 });
 
             modelBuilder.Entity("ElohimShop.Domain.Entities.Marca", b =>
@@ -684,14 +619,19 @@ namespace ElohimShop.Infrastructure.Migrations
                     b.Navigation("Venta");
                 });
 
-            modelBuilder.Entity("ElohimShop.Domain.Entities.Rol", b =>
+            modelBuilder.Entity("ElohimShop.Domain.Entities.Usuario", b =>
                 {
-                    b.Navigation("Administradores");
-                });
+                    b.Navigation("AdministradorPerfil");
 
-            modelBuilder.Entity("ElohimShop.Domain.Entities.TipoCliente", b =>
-                {
-                    b.Navigation("Clientes");
+                    b.Navigation("ClientePerfil");
+
+                    b.Navigation("ConsultasAdministrador");
+
+                    b.Navigation("ConsultasCliente");
+
+                    b.Navigation("Reservaciones");
+
+                    b.Navigation("Ventas");
                 });
 #pragma warning restore 612, 618
         }

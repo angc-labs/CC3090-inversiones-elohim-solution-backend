@@ -6,6 +6,6 @@ public class Consulta
     public string IdCliente { get; private set; } = string.Empty;
     public string IdUsuario { get; private set; } = string.Empty;
     public DateTime FechaConsulta { get; private set; }
-    public Cliente? Cliente { get; private set; }
-    public Administrador? Administrador { get; private set; }
+    public Usuario? Cliente { get; private set; }
+    public Usuario? Administrador { get; private set; }
 }

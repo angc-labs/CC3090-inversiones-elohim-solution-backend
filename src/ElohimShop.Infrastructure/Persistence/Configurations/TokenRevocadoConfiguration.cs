@@ -21,10 +21,10 @@ public class TokenRevocadoConfiguration : IEntityTypeConfiguration<TokenRevocado
             .HasMaxLength(100)
             .HasColumnName("jti");
 
-        builder.Property(token => token.ClienteId)
+        builder.Property(token => token.UsuarioId)
             .IsRequired()
             .HasMaxLength(255)
-            .HasColumnName("cliente_id");
+            .HasColumnName("usuario_id");
 
         builder.Property(token => token.ExpiraEn)
             .IsRequired()
@@ -36,9 +36,9 @@ public class TokenRevocadoConfiguration : IEntityTypeConfiguration<TokenRevocado
             .HasColumnType("timestamp with time zone")
             .HasColumnName("revocado_en");
 
-        builder.HasOne(token => token.Cliente)
+        builder.HasOne(token => token.Usuario)
             .WithMany()
-            .HasForeignKey(token => token.ClienteId)
+            .HasForeignKey(token => token.UsuarioId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(token => token.Jti)

@@ -10,20 +10,20 @@ public class TokenRevocado
 
     public string Jti { get; private set; } = string.Empty;
 
-    public string ClienteId { get; private set; } = string.Empty;
+    public string UsuarioId { get; private set; } = string.Empty;
 
     public DateTime ExpiraEn { get; private set; }
 
     public DateTime RevocadoEn { get; private set; }
 
-    public Cliente? Cliente { get; private set; }
+    public Usuario? Usuario { get; private set; }
 
-    public static TokenRevocado Crear(string jti, string clienteId, DateTime expiraEn)
+    public static TokenRevocado Crear(string jti, string usuarioId, DateTime expiraEn)
     {
         return new TokenRevocado
         {
             Jti = jti,
-            ClienteId = clienteId,
+            UsuarioId = usuarioId,
             ExpiraEn = expiraEn,
             RevocadoEn = DateTime.UtcNow
         };

@@ -1,5 +1,3 @@
-using ElohimShop.Domain.Enums;
-
 namespace ElohimShop.Domain.Entities;
 
 public class Venta
@@ -10,7 +8,7 @@ public class Venta
     public string? UsuarioCajeroId { get; private set; }
     public DateTime FechaVenta { get; private set; }
     public string TipoComprobante { get; private set; } = string.Empty;
-    public EstadoVenta EstadoVenta { get; private set; }
+    public string EstadoVenta { get; private set; } = string.Empty;
     public Reservacion? Reservacion { get; private set; }
-    public Administrador? UsuarioCajero { get; private set; }
+    public Usuario? UsuarioCajero { get; private set; }
 }
