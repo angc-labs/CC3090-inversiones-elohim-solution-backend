@@ -33,12 +33,12 @@ public class ConsultaConfiguration : IEntityTypeConfiguration<Consulta>
             .HasColumnName("fecha_consulta");
 
         builder.HasOne(co => co.Cliente)
-            .WithMany(c => c.Consultas)
+            .WithMany(u => u.ConsultasCliente)
             .HasForeignKey(co => co.IdCliente)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(co => co.Administrador)
-            .WithMany(a => a.Consultas)
+            .WithMany(u => u.ConsultasAdministrador)
             .HasForeignKey(co => co.IdUsuario)
             .OnDelete(DeleteBehavior.Cascade);
     }

@@ -1,5 +1,4 @@
 using ElohimShop.Domain.Entities;
-using ElohimShop.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -43,9 +42,6 @@ public class VentaConfiguration : IEntityTypeConfiguration<Venta>
 
         builder.Property(v => v.EstadoVenta)
             .IsRequired()
-            .HasConversion(
-                v => v.ToString(),
-                v => (EstadoVenta)Enum.Parse(typeof(EstadoVenta), v))
             .HasMaxLength(255)
             .HasColumnType("varchar(255)")
             .HasColumnName("estado_venta");
@@ -56,7 +52,7 @@ public class VentaConfiguration : IEntityTypeConfiguration<Venta>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasOne(v => v.UsuarioCajero)
-            .WithMany(a => a.Ventas)
+            .WithMany(u => u.Ventas)
             .HasForeignKey(v => v.UsuarioCajeroId)
             .OnDelete(DeleteBehavior.SetNull);
 

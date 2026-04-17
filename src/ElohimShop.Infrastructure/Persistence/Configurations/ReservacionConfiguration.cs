@@ -1,5 +1,4 @@
 using ElohimShop.Domain.Entities;
-using ElohimShop.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -33,9 +32,7 @@ public class ReservacionConfiguration : IEntityTypeConfiguration<Reservacion>
             .HasColumnName("fecha_renovacion");
 
         builder.Property(r => r.EstadoRenovacion)
-            .HasConversion(
-                v => v.HasValue ? v.Value.ToString() : null,
-                v => string.IsNullOrEmpty(v) ? null : (EstadoRenovacion)Enum.Parse(typeof(EstadoRenovacion), v))
+            .IsRequired()
             .HasMaxLength(60)
             .HasColumnType("varchar(60)")
             .HasColumnName("estado_renovacion");
@@ -60,7 +57,7 @@ public class ReservacionConfiguration : IEntityTypeConfiguration<Reservacion>
             .HasColumnName("fecha_limite_retiro");
 
         builder.HasOne(r => r.Cliente)
-            .WithMany(c => c.Reservaciones)
+            .WithMany(u => u.Reservaciones)
             .HasForeignKey(r => r.ClienteId)
             .OnDelete(DeleteBehavior.SetNull);
 
