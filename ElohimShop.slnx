@@ -5,4 +5,7 @@
     <Project Path="src/ElohimShop.Domain/ElohimShop.Domain.csproj" />
     <Project Path="src/ElohimShop.Infrastructure/ElohimShop.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ElohimShop.Tests/ElohimShop.Tests.csproj" />
+  </Folder>
 </Solution>
