@@ -3,6 +3,8 @@ using ElohimShop.Application.Auth;
 using ElohimShop.Application.Products;
 using ElohimShop.Application.Usuario;
 using ElohimShop.Application.Catalog;
+using ElohimShop.Application.Carrito;
+using ElohimShop.Application.Reservacion;
 using ElohimShop.Infrastructure.Auth;
 using ElohimShop.Infrastructure.Products;
 using ElohimShop.Infrastructure.User;
@@ -61,6 +63,8 @@ builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IUsuarioService, ElohimShop.Infrastructure.User.UsuarioService>();
 builder.Services.AddScoped<ICatalogService, CatalogService>();
+builder.Services.AddScoped<ICarritoService, CarritoService>();
+builder.Services.AddScoped<IReservacionService, ReservacionService>();
 builder.Services.AddScoped<IPasswordHashing, PasswordHashingService>();
 
 // Register DbContext with PostgreSQL
