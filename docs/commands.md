@@ -202,3 +202,57 @@ dotnet ef migrations add NombreDescriptivo --project src/ElohimShop.Infrastructu
 dotnet ef database update --project src/ElohimShop.Infrastructure --startup-project src/ElohimShop.API
 dotnet test ElohimShop.slnx
 ```
+
+## 11. Proyectos de Test
+
+El proyecto de tests se encuentra en `tests/ElohimShop.Tests/`.
+
+- Ejecutar todos los tests:
+
+```powershell
+dotnet test ElohimShop.slnx
+```
+
+- Ejecutar tests de un proyecto especifico:
+
+```powershell
+dotnet test tests/ElohimShop.Tests/ElohimShop.Tests.csproj
+```
+
+- Ejecutar tests con coverage:
+
+```powershell
+dotnet test ElohimShop.slnx --collect:"XPlat Code Coverage"
+```
+
+- Ejecutar tests por nombre:
+
+```powershell
+dotnet test ElohimShop.slnx --filter "FullyQualifiedName~CarritoServiceTests"
+```
+
+## 12. Docker y Contenedores
+
+- Ver contenedores en ejecucion:
+
+```powershell
+docker ps
+```
+
+- Ver logs de un contenedor:
+
+```powershell
+docker logs <container_id>
+```
+
+- Reconstruir y levantar servicios:
+
+```powershell
+docker-compose up --build
+```
+
+- Detener servicios:
+
+```powershell
+docker-compose down
+```
