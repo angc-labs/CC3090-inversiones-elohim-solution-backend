@@ -58,6 +58,18 @@ builder.Services.AddSwaggerGen(options =>
     }
 });
 
+// CORS Configuration
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProductService, ProductService>();
@@ -77,12 +89,15 @@ builder.Services.AddDbContext<ElohimShopDbContext>(options =>
 // JWT Configuration
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
+    ?? builder.Configuration["JWT_KEY"]
     ?? jwtSection["Key"]
-    ?? throw new InvalidOperationException("JWT Key no configurada.");
+    ?? throw new InvalidOperationException("JWT Key no configurada. Configure la variable de entorno JWT_KEY.");
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
+    ?? builder.Configuration["JWT_ISSUER"]
     ?? jwtSection["Issuer"]
     ?? "ElohimShop";
 var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
+    ?? builder.Configuration["JWT_AUDIENCE"]
     ?? jwtSection["Audience"]
     ?? "ElohimShop.Clients";
 
@@ -141,6 +156,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
