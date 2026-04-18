@@ -21,4 +21,29 @@ public class Reservacion
     public IReadOnlyCollection<DetalleReservacion> Detalles => _detalles.AsReadOnly();
 
     private Reservacion() { }
+
+    public static Reservacion Crear(string? clienteId, string? metodoPagoId)
+    {
+        var ahora = DateTime.UtcNow;
+        return new Reservacion
+        {
+            CodigoReservacion = $"RES-{ahora:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}",
+            ClienteId = clienteId,
+            EstadoRenovacion = "pendiente",
+            MetodoPagoId = metodoPagoId,
+            Pagado = false,
+            FechaRenovacion = ahora,
+            FechaLimiteRetiro = ahora.AddDays(3)
+        };
+    }
+
+    public void AgregarDetalle(string? productoId, string nombreProducto, int cantidad, decimal precioUnitario)
+    {
+        _detalles.Add(DetalleReservacion.Crear(IdReservacion, productoId, nombreProducto, cantidad, precioUnitario));
+    }
+
+    public void CalcularTotal()
+    {
+        TotalRenovacion = _detalles.Sum(d => d.Subtotal);
+    }
 }
