@@ -17,6 +17,10 @@ public class MetodoPagoConfiguration : IEntityTypeConfiguration<MetodoPago>
             .HasMaxLength(255)
             .HasColumnName("id_metodo_pago");
 
+        builder.Property(mp => mp.UsuarioId)
+            .HasMaxLength(255)
+            .HasColumnName("usuario_id");
+
         builder.Property(mp => mp.NombreMetodo)
             .IsRequired()
             .HasMaxLength(15)
