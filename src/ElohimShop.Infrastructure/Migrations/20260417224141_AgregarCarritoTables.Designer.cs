@@ -3,6 +3,7 @@ using System;
 using ElohimShop.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ElohimShop.Infrastructure.Migrations
 {
     [DbContext(typeof(ElohimShopDbContext))]
-    partial class ElohimShopDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260417224141_AgregarCarritoTables")]
+    partial class AgregarCarritoTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -207,10 +210,6 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("cantidad");
 
-                    b.Property<string>("NombreProducto")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<decimal>("PrecioUnitario")
                         .HasColumnType("numeric")
                         .HasColumnName("precio_unitario");
@@ -278,11 +277,6 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasMaxLength(15)
                         .HasColumnType("character varying(15)")
                         .HasColumnName("nombre_metodo");
-
-                    b.Property<string>("UsuarioId")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("usuario_id");
 
                     b.HasKey("IdMetodoPago");
 
