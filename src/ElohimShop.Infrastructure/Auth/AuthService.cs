@@ -161,8 +161,12 @@ public class AuthService : IAuthService
         var key = _configuration["JWT_KEY"]
             ?? jwtSection["Key"]
             ?? throw new InvalidOperationException("JWT key is required. Configure JWT_KEY or Jwt:Key.");
-        var issuer = jwtSection["Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer is required.");
-        var audience = jwtSection["Audience"] ?? throw new InvalidOperationException("Jwt:Audience is required.");
+        var issuer = _configuration["JWT_ISSUER"]
+            ?? jwtSection["Issuer"]
+            ?? throw new InvalidOperationException("Jwt:Issuer is required.");
+        var audience = _configuration["JWT_AUDIENCE"]
+            ?? jwtSection["Audience"]
+            ?? throw new InvalidOperationException("Jwt:Audience is required.");
 
         var expiresAt = DateTime.UtcNow.AddMonths(TokenLifetimeMonths);
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));

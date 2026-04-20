@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using ElohimShop.Application.Carrito;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,13 +23,14 @@ public class CarritoController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ObtenerCarrito(CancellationToken cancellationToken)
     {
-        var tipoUsuario = User.FindFirstValue("tipoUsuario");
+        var tipoUsuario = User.FindFirstValue("tipo_usuario");
         if (tipoUsuario != "cliente")
         {
             return Forbid();
         }
 
-        var clienteId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var clienteId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(clienteId))
         {
             return Unauthorized(new { error = "Token inválido." });
@@ -55,13 +57,14 @@ public class CarritoController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> AgregarArticulo([FromBody] AgregarArticuloCarritoDto dto, CancellationToken cancellationToken)
     {
-        var tipoUsuario = User.FindFirstValue("tipoUsuario");
+        var tipoUsuario = User.FindFirstValue("tipo_usuario");
         if (tipoUsuario != "cliente")
         {
             return Forbid();
         }
 
-        var clienteId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var clienteId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(clienteId))
         {
             return Unauthorized(new { error = "Token inválido." });
@@ -99,13 +102,14 @@ public class CarritoController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ActualizarCantidadArticulo(string articuloId, [FromBody] ActualizarCantidadArticuloDto dto, CancellationToken cancellationToken)
     {
-        var tipoUsuario = User.FindFirstValue("tipoUsuario");
+        var tipoUsuario = User.FindFirstValue("tipo_usuario");
         if (tipoUsuario != "cliente")
         {
             return Forbid();
         }
 
-        var clienteId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var clienteId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(clienteId))
         {
             return Unauthorized(new { error = "Token inválido." });
@@ -126,13 +130,14 @@ public class CarritoController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> EliminarArticulo(string articuloId, CancellationToken cancellationToken)
     {
-        var tipoUsuario = User.FindFirstValue("tipoUsuario");
+        var tipoUsuario = User.FindFirstValue("tipo_usuario");
         if (tipoUsuario != "cliente")
         {
             return Forbid();
         }
 
-        var clienteId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var clienteId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(clienteId))
         {
             return Unauthorized(new { error = "Token inválido." });

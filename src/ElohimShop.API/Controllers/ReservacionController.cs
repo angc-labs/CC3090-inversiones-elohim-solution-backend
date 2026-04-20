@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using ElohimShop.Application.Reservacion;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,13 +24,14 @@ public class ReservacionController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> CrearReservacion([FromBody] CrearReservacionDto dto, CancellationToken cancellationToken)
     {
-        var tipoUsuario = User.FindFirstValue("tipoUsuario");
+        var tipoUsuario = User.FindFirstValue("tipo_usuario");
         if (tipoUsuario != "cliente")
         {
             return Forbid();
         }
 
-        var clienteId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var clienteId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(clienteId))
         {
             return Unauthorized(new { error = "Token inválido." });
@@ -60,10 +62,13 @@ public class ReservacionController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ObtenerReservaciones(CancellationToken cancellationToken)
     {
-        var tipoUsuario = User.FindFirstValue("tipoUsuario");
+        var tipoUsuario = User.FindFirstValue("tipo_usuario");
         var esAdministrador = tipoUsuario == "administrador";
         
-        var clienteId = esAdministrador ? null : User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var clienteId = esAdministrador
+            ? null
+            : User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         var reservaciones = await _reservacionService.ObtenerReservacionesAsync(clienteId, esAdministrador, cancellationToken);
         return Ok(reservaciones);
@@ -75,10 +80,11 @@ public class ReservacionController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ObtenerReservacionPorId(string id, CancellationToken cancellationToken)
     {
-        var tipoUsuario = User.FindFirstValue("tipoUsuario");
+        var tipoUsuario = User.FindFirstValue("tipo_usuario");
         var esAdministrador = tipoUsuario == "administrador";
         
-        var clienteId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var clienteId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         try
         {
