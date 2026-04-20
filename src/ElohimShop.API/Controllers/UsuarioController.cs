@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using ElohimShop.Application.Usuario;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,7 +23,8 @@ public class UsuarioController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ObtenerPerfil(CancellationToken cancellationToken)
     {
-        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var usuarioId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(usuarioId))
         {
             return Unauthorized(new { error = "Token inválido." });
@@ -45,7 +47,8 @@ public class UsuarioController : ControllerBase
         [FromBody] ActualizarPerfilDto dto,
         CancellationToken cancellationToken)
     {
-        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var usuarioId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(usuarioId))
         {
             return Unauthorized(new { error = "Token inválido." });
