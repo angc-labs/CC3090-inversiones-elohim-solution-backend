@@ -1,10 +1,12 @@
 using ElohimShop.Infrastructure.Persistence;
+using ElohimShop.Infrastructure.Pagos;
 using ElohimShop.Application.Auth;
 using ElohimShop.Application.Products;
 using ElohimShop.Application.Usuario;
 using ElohimShop.Application.Catalog;
 using ElohimShop.Application.Carrito;
 using ElohimShop.Application.Reservacion;
+using ElohimShop.Application.Pagos;
 using ElohimShop.Infrastructure.Auth;
 using ElohimShop.Infrastructure.Products;
 using ElohimShop.Infrastructure.User;
@@ -17,6 +19,30 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Reflection;
+using DotNetEnv;
+
+var envCargado = false;
+foreach (var startPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+{
+    var dir = new DirectoryInfo(startPath);
+    while (dir is not null)
+    {
+        var envPath = Path.Combine(dir.FullName, ".env");
+        if (File.Exists(envPath))
+        {
+            Env.Load(envPath);
+            envCargado = true;
+            break;
+        }
+
+        dir = dir.Parent;
+    }
+
+    if (envCargado)
+    {
+        break;
+    }
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -82,7 +108,13 @@ builder.Services.AddScoped<IUsuarioService, ElohimShop.Infrastructure.User.Usuar
 builder.Services.AddScoped<ICatalogService, CatalogService>();
 builder.Services.AddScoped<ICarritoService, CarritoService>();
 builder.Services.AddScoped<IReservacionService, ReservacionService>();
+builder.Services.AddScoped<IPagosService, StripePagosService>();
+builder.Services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler>();
+builder.Services.AddScoped<IMetodosPagoUsuarioService, MetodosPagoUsuarioService>();
 builder.Services.AddScoped<IPasswordHashing, PasswordHashingService>();
+
+builder.Services.Configure<StripePaymentOptions>(
+    builder.Configuration.GetSection(StripePaymentOptions.SectionName));
 
 // Register DbContext with PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -148,6 +180,12 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    context.Request.EnableBuffering();
+    await next();
+});
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())

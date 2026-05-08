@@ -176,7 +176,8 @@ public class AuthService : IAuthService
             new(JwtRegisteredClaimNames.Email, usuario.Correo),
             new(ClaimTypes.Name, usuario.Nombre),
             new(ClaimTypes.NameIdentifier, usuario.Id),
-            new("tipo_usuario", usuario.TipoUsuario)
+            new("tipo_usuario", usuario.TipoUsuario),
+            new("tipoUsuario", usuario.TipoUsuario)
         };
 
         if (usuario.ClientePerfil != null)
