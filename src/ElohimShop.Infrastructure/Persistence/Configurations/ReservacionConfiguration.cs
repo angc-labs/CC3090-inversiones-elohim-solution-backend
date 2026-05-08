@@ -56,6 +56,10 @@ public class ReservacionConfiguration : IEntityTypeConfiguration<Reservacion>
             .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_limite_retiro");
 
+        builder.Property(r => r.StripePaymentIntentId)
+            .HasMaxLength(255)
+            .HasColumnName("stripe_payment_intent_id");
+
         builder.HasOne(r => r.Cliente)
             .WithMany(u => u.Reservaciones)
             .HasForeignKey(r => r.ClienteId)

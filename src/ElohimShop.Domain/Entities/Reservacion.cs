@@ -14,6 +14,7 @@ public class Reservacion
     public bool Pagado { get; private set; }
     public string? Observaciones { get; private set; }
     public DateTime FechaLimiteRetiro { get; private set; }
+    public string? StripePaymentIntentId { get; private set; }
     public Usuario? Cliente { get; private set; }
     public MetodoPago? MetodoPago { get; private set; }
     public Venta? Venta { get; private set; }
@@ -45,5 +46,22 @@ public class Reservacion
     public void CalcularTotal()
     {
         TotalRenovacion = _detalles.Sum(d => d.Subtotal);
+    }
+
+    public void AsignarStripePaymentIntent(string paymentIntentId)
+    {
+        StripePaymentIntentId = paymentIntentId;
+    }
+
+    public void MarcarComoPagada()
+    {
+        Pagado = true;
+    }
+
+    public void AnexarObservacion(string texto)
+    {
+        Observaciones = string.IsNullOrEmpty(Observaciones)
+            ? texto
+            : $"{Observaciones}{Environment.NewLine}{texto}";
     }
 }

@@ -2,10 +2,9 @@ namespace ElohimShop.Domain.Entities;
 
 public class Usuario
 {
-    private readonly List<Consulta> _consultasCliente = new();
-    private readonly List<Consulta> _consultasAdministrador = new();
-    private readonly List<Reservacion> _reservaciones = new();
-    private readonly List<Venta> _ventas = new();
+    private Usuario()
+    {
+    }
 
     public string Id { get; private set; } = Guid.NewGuid().ToString();
     public string Correo { get; private set; } = string.Empty;
@@ -14,22 +13,20 @@ public class Usuario
     public string? Telefono { get; private set; }
     public string Contrasena { get; private set; } = string.Empty;
     public string TipoUsuario { get; private set; } = string.Empty;
-    public bool Estado { get; private set; }
-    public DateTime FechaCreacion { get; private set; }
+    public bool Estado { get; private set; } = true;
+    public DateTime FechaCreacion { get; private set; } = DateTime.UtcNow;
+    public string? StripeCustomerId { get; private set; }
     public ClientePerfil? ClientePerfil { get; private set; }
     public AdministradorPerfil? AdministradorPerfil { get; private set; }
-
-    public IReadOnlyCollection<Consulta> ConsultasCliente => _consultasCliente.AsReadOnly();
-    public IReadOnlyCollection<Consulta> ConsultasAdministrador => _consultasAdministrador.AsReadOnly();
-    public IReadOnlyCollection<Reservacion> Reservaciones => _reservaciones.AsReadOnly();
-    public IReadOnlyCollection<Venta> Ventas => _ventas.AsReadOnly();
-
-    private Usuario() { }
+    public ICollection<Consulta> ConsultasCliente { get; private set; } = new List<Consulta>();
+    public ICollection<Consulta> ConsultasAdministrador { get; private set; } = new List<Consulta>();
+    public ICollection<Reservacion> Reservaciones { get; private set; } = new List<Reservacion>();
+    public ICollection<Venta> Ventas { get; private set; } = new List<Venta>();
 
     public static Usuario CrearCliente(
         string correo,
         string nombre,
-        string contrasena,
+        string contrasenaHash,
         string tipoCliente,
         string? apellido = null,
         string? telefono = null,
@@ -39,10 +36,10 @@ public class Usuario
         {
             Correo = correo.Trim(),
             Nombre = nombre.Trim(),
-            Contrasena = contrasena,
-            Apellido = apellido?.Trim(),
-            Telefono = telefono?.Trim(),
+            Contrasena = contrasenaHash,
             TipoUsuario = "cliente",
+            Apellido = string.IsNullOrWhiteSpace(apellido) ? null : apellido.Trim(),
+            Telefono = string.IsNullOrWhiteSpace(telefono) ? null : telefono.Trim(),
             Estado = true,
             FechaCreacion = DateTime.UtcNow
         };
@@ -50,8 +47,8 @@ public class Usuario
         usuario.ClientePerfil = new ClientePerfil
         {
             UsuarioId = usuario.Id,
-            Direccion = direccion?.Trim(),
-            TipoCliente = tipoCliente
+            TipoCliente = tipoCliente.Trim(),
+            Direccion = string.IsNullOrWhiteSpace(direccion) ? null : direccion.Trim()
         };
 
         return usuario;
@@ -60,7 +57,7 @@ public class Usuario
     public static Usuario CrearAdministrador(
         string correo,
         string nombre,
-        string contrasena,
+        string contrasenaHash,
         string rol,
         string? apellido = null,
         string? telefono = null)
@@ -69,10 +66,10 @@ public class Usuario
         {
             Correo = correo.Trim(),
             Nombre = nombre.Trim(),
-            Contrasena = contrasena,
-            Apellido = apellido?.Trim(),
-            Telefono = telefono?.Trim(),
+            Contrasena = contrasenaHash,
             TipoUsuario = "administrador",
+            Apellido = string.IsNullOrWhiteSpace(apellido) ? null : apellido.Trim(),
+            Telefono = string.IsNullOrWhiteSpace(telefono) ? null : telefono.Trim(),
             Estado = true,
             FechaCreacion = DateTime.UtcNow
         };
@@ -80,20 +77,10 @@ public class Usuario
         usuario.AdministradorPerfil = new AdministradorPerfil
         {
             UsuarioId = usuario.Id,
-            Rol = rol
+            Rol = rol.Trim()
         };
 
         return usuario;
-    }
-
-    public bool VerificarContrasena(string contrasenaPlana, Func<string, string, bool> verificar)
-    {
-        return verificar(contrasenaPlana, Contrasena);
-    }
-
-    public void ActualizarContrasena(string nuevaContrasenaHash)
-    {
-        Contrasena = nuevaContrasenaHash;
     }
 
     public void ActualizarPerfil(string? correo, string? nombre, string? apellido, string? telefono)
@@ -117,5 +104,15 @@ public class Usuario
         {
             Telefono = string.IsNullOrWhiteSpace(telefono) ? null : telefono.Trim();
         }
+    }
+
+    public void ActualizarContrasena(string contrasenaHash)
+    {
+        Contrasena = contrasenaHash;
+    }
+
+    public void AsignarStripeCustomerId(string stripeCustomerId)
+    {
+        StripeCustomerId = stripeCustomerId;
     }
 }

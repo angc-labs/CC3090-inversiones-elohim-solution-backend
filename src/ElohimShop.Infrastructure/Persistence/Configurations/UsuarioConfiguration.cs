@@ -55,6 +55,10 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_creacion");
 
+        builder.Property(u => u.StripeCustomerId)
+            .HasMaxLength(255)
+            .HasColumnName("stripe_customer_id");
+
         builder.HasOne(u => u.ClientePerfil)
             .WithOne(cp => cp.Usuario)
             .HasForeignKey<ClientePerfil>(cp => cp.UsuarioId)
