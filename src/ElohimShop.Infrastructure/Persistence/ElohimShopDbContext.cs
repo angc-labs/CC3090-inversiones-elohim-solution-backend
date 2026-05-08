@@ -1,4 +1,5 @@
 using ElohimShop.Domain.Entities;
+using ElohimShop.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace ElohimShop.Infrastructure.Persistence;
@@ -27,7 +28,22 @@ public class ElohimShopDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ElohimShopDbContext).Assembly);
+
+        // Aplicación explícita: en algunos entornos (p. ej. tests + InMemory) ApplyConfigurationsFromAssembly
+        // no registraba tipos y dejaba entidades sin PK (IdReservacion / IdMetodoPago no siguen la convención "Id").
+        modelBuilder.ApplyConfiguration(new AdministradorPerfilConfiguration());
+        modelBuilder.ApplyConfiguration(new ArticuloCarritoConfiguration());
+        modelBuilder.ApplyConfiguration(new CarritoConfiguration());
+        modelBuilder.ApplyConfiguration(new CategoriaConfiguration());
+        modelBuilder.ApplyConfiguration(new ClientePerfilConfiguration());
+        modelBuilder.ApplyConfiguration(new ConsultaConfiguration());
+        modelBuilder.ApplyConfiguration(new DetalleReservacionConfiguration());
+        modelBuilder.ApplyConfiguration(new MarcaConfiguration());
+        modelBuilder.ApplyConfiguration(new MetodoPagoConfiguration());
+        modelBuilder.ApplyConfiguration(new ProductoConfiguration());
+        modelBuilder.ApplyConfiguration(new ReservacionConfiguration());
+        modelBuilder.ApplyConfiguration(new TokenRevocadoConfiguration());
+        modelBuilder.ApplyConfiguration(new UsuarioConfiguration());
+        modelBuilder.ApplyConfiguration(new VentaConfiguration());
     }
 }

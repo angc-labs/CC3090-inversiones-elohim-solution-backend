@@ -29,6 +29,28 @@ public class MetodoPagoConfiguration : IEntityTypeConfiguration<MetodoPago>
         builder.Property(mp => mp.Descripcion)
             .HasColumnType("text");
 
+        builder.Property(mp => mp.StripePaymentMethodId)
+            .HasMaxLength(255)
+            .HasColumnName("stripe_payment_method_id");
+
+        builder.Property(mp => mp.Alias)
+            .HasMaxLength(120)
+            .HasColumnName("alias_tarjeta");
+
+        builder.Property(mp => mp.MarcaTarjeta)
+            .HasMaxLength(30)
+            .HasColumnName("marca_tarjeta");
+
+        builder.Property(mp => mp.UltimosDigitos)
+            .HasMaxLength(4)
+            .HasColumnName("ultimos_digitos");
+
+        builder.Property(mp => mp.ExpiraMes)
+            .HasColumnName("expira_mes");
+
+        builder.Property(mp => mp.ExpiraAnio)
+            .HasColumnName("expira_anio");
+
         builder.Property(mp => mp.Activo)
             .IsRequired();
 
