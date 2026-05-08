@@ -1,8 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using ElohimShop.Application.Auth;
+using ElohimShop.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ElohimShop.API.Controllers;
 
@@ -11,10 +13,12 @@ namespace ElohimShop.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ElohimShopDbContext _dbContext;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ElohimShopDbContext dbContext)
     {
         _authService = authService;
+        _dbContext = dbContext;
     }
 
     [HttpPost("register")]
@@ -31,7 +35,12 @@ public class AuthController : ControllerBase
             if (request.TipoUsuario == "administrador")
             {
                 var callerRole = User.FindFirstValue("rol");
-                if (callerRole != "administrador")
+                var existeAdministrador = await _dbContext.Usuarios
+                    .AsNoTracking()
+                    .AnyAsync(u => u.TipoUsuario == "administrador", cancellationToken);
+
+                // Bootstrap: si no existe ningun admin, permitimos crear el primero sin token admin.
+                if (callerRole != "administrador" && existeAdministrador)
                 {
                     return StatusCode(403, new { error = "No tenés permisos para registrar administradores." });
                 }
