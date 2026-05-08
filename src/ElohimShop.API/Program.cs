@@ -84,20 +84,20 @@ builder.Services.AddSwaggerGen(options =>
     }
 });
 
-// CORS Configuration
+// CORS Configuration - must be before any middleware
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://20.80.105.45:3000",
-            "http://20.80.105.45:5000"
-        )
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://20.80.105.45:3000",
+                "http://20.80.105.45:5000",
+                "http://20.80.105.45"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
@@ -198,10 +198,10 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapControllers();
 
 app.MapControllers();
 
