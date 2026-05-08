@@ -10,6 +10,10 @@ COPY ["src/ElohimShop.Domain/ElohimShop.Domain.csproj", "src/ElohimShop.Domain/"
 
 RUN dotnet restore "src/ElohimShop.API/ElohimShop.API.csproj"
 COPY . .
+# Fuerza inclusión de entidades de dominio en capa no cacheada incorrectamente.
+COPY src/ElohimShop.Domain/Entities/ src/ElohimShop.Domain/Entities/
+# Fuerza inclusión de archivos de pagos Stripe en Infrastructure.
+COPY src/ElohimShop.Infrastructure/Pagos/ src/ElohimShop.Infrastructure/Pagos/
 
 RUN dotnet publish "src/ElohimShop.API/ElohimShop.API.csproj" -c Release -o /app/publish
 
