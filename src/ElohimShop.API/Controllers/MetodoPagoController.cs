@@ -1,0 +1,140 @@
+using System.Security.Claims;
+using ElohimShop.Application.Pagos;
+using ElohimShop.Infrastructure.Pagos;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+
+namespace ElohimShop.API.Controllers;
+
+[ApiController]
+[Route("api/metodoPago")]
+[Authorize]
+public class MetodoPagoController : ControllerBase
+{
+    private readonly IMetodosPagoUsuarioService _metodosPago;
+    private readonly StripePaymentOptions _stripeOptions;
+
+    public MetodoPagoController(
+        IMetodosPagoUsuarioService metodosPago,
+        IOptions<StripePaymentOptions> stripeOptions)
+    {
+        _metodosPago = metodosPago;
+        _stripeOptions = stripeOptions.Value;
+    }
+
+    /// <summary>Clave publicable y moneda para Stripe.js (cliente autenticado).</summary>
+    [HttpGet("config-stripe")]
+    [ProducesResponseType(typeof(ConfigStripeClienteDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status503ServiceUnavailable)]
+    public ActionResult<ConfigStripeClienteDto> ConfigStripe()
+    {
+        if (User.FindFirstValue("tipoUsuario") != "cliente")
+        {
+            return Forbid();
+        }
+
+        var publishableKey = Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY")?.Trim()
+            ?? _stripeOptions.PublishableKey?.Trim();
+
+        if (string.IsNullOrEmpty(publishableKey))
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                new { error = "Stripe no está configurado para el cliente (clave publicable)." });
+        }
+
+        var moneda = (Environment.GetEnvironmentVariable("STRIPE_DEFAULT_CURRENCY")?.Trim()
+            ?? _stripeOptions.DefaultCurrency
+            ?? "gtq").ToLowerInvariant();
+
+        return Ok(new ConfigStripeClienteDto
+        {
+            PublishableKey = publishableKey,
+            DefaultCurrency = moneda
+        });
+    }
+
+    [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyList<MetodoPagoGuardadoDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Listar(CancellationToken cancellationToken)
+    {
+        if (User.FindFirstValue("tipoUsuario") != "cliente")
+        {
+            return Forbid();
+        }
+
+        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(usuarioId))
+        {
+            return Unauthorized(new { error = "Token inválido." });
+        }
+
+        var lista = await _metodosPago.ListarAsync(usuarioId, cancellationToken).ConfigureAwait(false);
+        return Ok(lista);
+    }
+
+    [HttpPost]
+    [ProducesResponseType(typeof(MetodoPagoGuardadoDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Guardar([FromBody] GuardarMetodoPagoDto dto, CancellationToken cancellationToken)
+    {
+        if (User.FindFirstValue("tipoUsuario") != "cliente")
+        {
+            return Forbid();
+        }
+
+        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(usuarioId))
+        {
+            return Unauthorized(new { error = "Token inválido." });
+        }
+
+        try
+        {
+            var creado = await _metodosPago.GuardarAsync(usuarioId, dto, cancellationToken).ConfigureAwait(false);
+            return StatusCode(StatusCodes.Status201Created, creado);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("ya está guardado"))
+        {
+            return Conflict(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Eliminar(string id, CancellationToken cancellationToken)
+    {
+        if (User.FindFirstValue("tipoUsuario") != "cliente")
+        {
+            return Forbid();
+        }
+
+        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(usuarioId))
+        {
+            return Unauthorized(new { error = "Token inválido." });
+        }
+
+        try
+        {
+            await _metodosPago.EliminarAsync(usuarioId, id, cancellationToken).ConfigureAwait(false);
+            return NoContent();
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound(new { error = "Método de pago no encontrado." });
+        }
+    }
+}
