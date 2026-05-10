@@ -82,6 +82,23 @@ public class CatalogController : ControllerBase
         return Ok(producto);
     }
 
+    // [Authorize(Roles = "administrador")]
+    [HttpGet("seed/productos")]
+    [ProducesResponseType(typeof(SeedCatalogoResultadoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SeedProductos(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resultado = await _catalogService.SeedCatalogoAsync(25, cancellationToken);
+            return Ok(resultado);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [Authorize(Roles = "administrador")]
     [HttpPost("productos")]
     [ProducesResponseType(typeof(ProductResponseDto), StatusCodes.Status201Created)]
