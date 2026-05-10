@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using ElohimShop.Application.Pagos;
 using ElohimShop.Infrastructure.Pagos;
@@ -15,6 +16,11 @@ public class MetodoPagoController : ControllerBase
     private readonly IMetodosPagoUsuarioService _metodosPago;
     private readonly StripePaymentOptions _stripeOptions;
 
+    /// <summary>Con MapInboundClaims=false el subject viene como <c>sub</c>, no como NameIdentifier.</summary>
+    private string? ClienteIdActual() =>
+        User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+        ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
     public MetodoPagoController(
         IMetodosPagoUsuarioService metodosPago,
         IOptions<StripePaymentOptions> stripeOptions)
@@ -30,7 +36,8 @@ public class MetodoPagoController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status503ServiceUnavailable)]
     public ActionResult<ConfigStripeClienteDto> ConfigStripe()
     {
-        if (User.FindFirstValue("tipoUsuario") != "cliente")
+        var tipo = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
+        if (tipo != "cliente")
         {
             return Forbid();
         }
@@ -56,16 +63,39 @@ public class MetodoPagoController : ControllerBase
         });
     }
 
-    [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<MetodoPagoGuardadoDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Listar(CancellationToken cancellationToken)
+    /// <summary>Garantiza un método de pago interno sin Stripe para reservas pagadas al retiro.</summary>
+    [HttpPost("contra-entrega")]
+    [ProducesResponseType(typeof(MetodoPagoGuardadoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> AsegurarContraEntrega(CancellationToken cancellationToken)
     {
-        if (User.FindFirstValue("tipoUsuario") != "cliente")
+        var tipo = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
+        if (tipo != "cliente")
         {
             return Forbid();
         }
 
-        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var usuarioId = ClienteIdActual();
+        if (string.IsNullOrWhiteSpace(usuarioId))
+        {
+            return Unauthorized(new { error = "Token inválido." });
+        }
+
+        var creado = await _metodosPago.AsegurarContraEntregaAsync(usuarioId, cancellationToken).ConfigureAwait(false);
+        return Ok(creado);
+    }
+
+    [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyList<MetodoPagoGuardadoDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Listar(CancellationToken cancellationToken)
+    {
+        var tipo = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
+        if (tipo != "cliente")
+        {
+            return Forbid();
+        }
+
+        var usuarioId = ClienteIdActual();
         if (string.IsNullOrWhiteSpace(usuarioId))
         {
             return Unauthorized(new { error = "Token inválido." });
@@ -81,12 +111,13 @@ public class MetodoPagoController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Guardar([FromBody] GuardarMetodoPagoDto dto, CancellationToken cancellationToken)
     {
-        if (User.FindFirstValue("tipoUsuario") != "cliente")
+        var tipo = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
+        if (tipo != "cliente")
         {
             return Forbid();
         }
 
-        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var usuarioId = ClienteIdActual();
         if (string.IsNullOrWhiteSpace(usuarioId))
         {
             return Unauthorized(new { error = "Token inválido." });
@@ -116,12 +147,13 @@ public class MetodoPagoController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Eliminar(string id, CancellationToken cancellationToken)
     {
-        if (User.FindFirstValue("tipoUsuario") != "cliente")
+        var tipo = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
+        if (tipo != "cliente")
         {
             return Forbid();
         }
 
-        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var usuarioId = ClienteIdActual();
         if (string.IsNullOrWhiteSpace(usuarioId))
         {
             return Unauthorized(new { error = "Token inválido." });

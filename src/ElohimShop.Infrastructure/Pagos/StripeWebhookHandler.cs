@@ -69,9 +69,28 @@ public class StripeWebhookHandler : IStripeWebhookHandler
             .FirstOrDefaultAsync(r => r.IdReservacion == rid, ct)
             .ConfigureAwait(false);
 
-        if (reservacion is null || reservacion.Pagado)
+        if (reservacion is null)
         {
             return;
+        }
+
+        if (reservacion.Pagado)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(reservacion.StripePaymentIntentId) &&
+            !string.Equals(reservacion.StripePaymentIntentId, pi.Id, StringComparison.Ordinal))
+        {
+            reservacion.AnexarObservacion(
+                $"Webhook payment_intent.succeeded: PI {pi.Id} no coincide con el PI de la reserva ({reservacion.StripePaymentIntentId}).");
+            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(reservacion.StripePaymentIntentId))
+        {
+            reservacion.AsignarStripePaymentIntent(pi.Id);
         }
 
         reservacion.MarcarComoPagada();
