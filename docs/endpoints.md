@@ -778,7 +778,9 @@ Authorization: Bearer <token>
 >  **Variables de entorno requeridas:**
 > - `STRIPE_SECRET_KEY` — solo en el backend, nunca exponer
 > - `STRIPE_PUBLISHABLE_KEY` — se entrega al frontend
-> - `STRIPE_WEBHOOK_SECRET` — solo en el backend, para validar webhooks
+> - `STRIPE_WEBHOOK_SECRET` — solo en el backend, para validar webhooks (o `Stripe:WebhookSecret` en configuración)
+>
+>  **Sincronización `pagado`:** Stripe notifica pagos exitosos mediante el webhook `POST /api/pagos/webhook`. Sin ese endpoint configurado en el Dashboard de Stripe (o con `stripe listen` en local), el campo `pagado` en la base puede quedar desactualizado hasta que el cliente llame a `GET /api/pagos/:id/status`, que también reconcilia el estado si Stripe ya reporta `succeeded`.
 
 ---
 
@@ -821,9 +823,11 @@ Authorization: Bearer <token>
 
 ### POST `/api/pagos/webhook`
 
- **Endpoint crítico.** Stripe llama automáticamente este endpoint cuando ocurre un evento de pago. Aquí se confirma la orden en la base de datos.
+ **Endpoint crítico.** Stripe llama automáticamente este endpoint cuando ocurre un evento de pago. Aquí se confirma la orden en la base de datos (`pagado = true` cuando el `PaymentIntent` coincide con la reserva).
 
 > Este endpoint **no requiere JWT**. La autenticación se hace validando la firma del header `Stripe-Signature` con el `STRIPE_WEBHOOK_SECRET`.
+
+> En **Stripe Dashboard → Developers → Webhooks**, la URL debe ser `https://<tu-api>/api/pagos/webhook`. En local, usar la CLI: `stripe listen --forward-to http://localhost:<puerto>/api/pagos/webhook` y copiar el *signing secret* como `STRIPE_WEBHOOK_SECRET`.
 
 **Headers:**
 ```
@@ -855,13 +859,20 @@ Content-Type: application/json
 }
 ```
 
+**Response `500 Internal Server Error`** (p. ej. `STRIPE_WEBHOOK_SECRET` no configurado en el servidor):
+```json
+{
+  "error": "STRIPE_WEBHOOK_SECRET no configurado."
+}
+```
+
 >  Si este endpoint responde con cualquier código que no sea 2xx, Stripe reintentará el evento hasta 3 días.
 
 ---
 
 ### GET `/api/pagos/:paymentIntentId/status`
 
-Consulta el estado actual de un pago. Útil como fallback si el webhook tarda en llegar o falla.
+Consulta el estado actual de un pago. **Además**, si Stripe devuelve `succeeded` y la reservación asociada aún tiene `pagado = false`, el backend actualiza la base en la misma petición (útil cuando el webhook no está disponible o llega tarde).
 
 **Headers:**
 ```
