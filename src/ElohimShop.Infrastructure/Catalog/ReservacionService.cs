@@ -53,7 +53,7 @@ public class ReservacionService : IReservacionService
         
         await _dbContext.SaveChangesAsync(ct);
 
-        return MapToDto(reservacion);
+        return MapToDto(reservacion, metodoPago);
     }
 
     public async Task<IReadOnlyList<ReservacionListadoDto>> ObtenerReservacionesAsync(string? clienteId, bool esAdministrador, CancellationToken ct = default)
@@ -88,6 +88,7 @@ public class ReservacionService : IReservacionService
         var reservacion = await _dbContext.Reservaciones
             .AsNoTracking()
             .Include(r => r.Detalles)
+            .Include(r => r.MetodoPago)
             .FirstOrDefaultAsync(r => r.IdReservacion == id, ct);
 
         if (reservacion is null)
@@ -103,8 +104,9 @@ public class ReservacionService : IReservacionService
         return MapToDto(reservacion);
     }
 
-    private static ReservacionDto MapToDto(Reservacion reservacion)
+    private static ReservacionDto MapToDto(Reservacion reservacion, MetodoPago? metodoPago = null)
     {
+        var mp = metodoPago ?? reservacion.MetodoPago;
         return new ReservacionDto
         {
             IdReservacion = reservacion.IdReservacion,
@@ -113,6 +115,8 @@ public class ReservacionService : IReservacionService
             Estado = reservacion.EstadoRenovacion,
             TotalReservacion = reservacion.TotalRenovacion ?? 0,
             MetodoPagoId = reservacion.MetodoPagoId,
+            MetodoEsTarjeta = !string.IsNullOrEmpty(mp?.StripePaymentMethodId),
+            StripePaymentIntentId = reservacion.StripePaymentIntentId,
             Pagado = reservacion.Pagado,
             Observaciones = reservacion.Observaciones,
             FechaLimiteRetiro = reservacion.FechaLimiteRetiro,

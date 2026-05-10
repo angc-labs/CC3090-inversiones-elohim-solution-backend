@@ -25,6 +25,11 @@ public class DetalleReservacionConfiguration : IEntityTypeConfiguration<DetalleR
             .HasMaxLength(255)
             .HasColumnName("producto_id");
 
+        builder.Property(dr => dr.NombreProducto)
+            .IsRequired()
+            .HasColumnType("text")
+            .HasColumnName("nombre_producto");
+
         builder.Property(dr => dr.Cantidad)
             .IsRequired()
             .HasColumnName("cantidad");

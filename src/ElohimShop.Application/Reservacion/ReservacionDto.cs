@@ -13,6 +13,10 @@ public class ReservacionDto
     public string Estado { get; set; } = string.Empty;
     public decimal TotalReservacion { get; set; }
     public string? MetodoPagoId { get; set; }
+    /// <summary>True si el método guardado está vinculado a Stripe (tarjeta).</summary>
+    public bool MetodoEsTarjeta { get; set; }
+    /// <summary>PaymentIntent de Stripe asociado, si existe.</summary>
+    public string? StripePaymentIntentId { get; set; }
     public bool Pagado { get; set; }
     public string? Observaciones { get; set; }
     public DateTime FechaLimiteRetiro { get; set; }

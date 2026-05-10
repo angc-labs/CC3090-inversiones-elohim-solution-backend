@@ -41,6 +41,11 @@ public class ArticuloCarritoConfiguration : IEntityTypeConfiguration<ArticuloCar
             .HasColumnType("numeric")
             .HasColumnName("precio_unitario");
 
+        builder.Property(a => a.Subtotal)
+            .IsRequired()
+            .HasColumnType("numeric")
+            .HasColumnName("subtotal");
+
         builder.HasOne(a => a.Carrito)
             .WithMany(c => c.Articulos)
             .HasForeignKey(a => a.CarritoId)

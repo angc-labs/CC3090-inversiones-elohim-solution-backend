@@ -74,7 +74,8 @@ namespace ElohimShop.Infrastructure.Migrations
                         .HasColumnName("producto_id");
 
                     b.Property<decimal>("Subtotal")
-                        .HasColumnType("numeric");
+                        .HasColumnType("numeric")
+                        .HasColumnName("subtotal");
 
                     b.HasKey("IdArticulo");
 
@@ -209,7 +210,8 @@ namespace ElohimShop.Infrastructure.Migrations
 
                     b.Property<string>("NombreProducto")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("nombre_producto");
 
                     b.Property<decimal>("PrecioUnitario")
                         .HasColumnType("numeric")

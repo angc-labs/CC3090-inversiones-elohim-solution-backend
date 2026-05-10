@@ -142,6 +142,8 @@ public class StripePagosService : IPagosService
             throw new UnauthorizedAccessException("No tenés permisos para consultar este pago.");
         }
 
+        await SincronizarPagadoConStripeAsync(rid, pi.Id, pi.Status, ct).ConfigureAwait(false);
+
         return new PagoEstadoDto
         {
             PaymentIntentId = pi.Id,
@@ -150,6 +152,45 @@ public class StripePagosService : IPagosService
             MontoCentavos = pi.Amount,
             Moneda = pi.Currency
         };
+    }
+
+    /// <summary>
+    /// Si Stripe ya cobró pero el webhook aún no actualizó la BD (desarrollo local, retraso, etc.),
+    /// marca la reservación como pagada al consultar el estado.
+    /// </summary>
+    private async Task SincronizarPagadoConStripeAsync(
+        string reservacionId,
+        string paymentIntentId,
+        string stripeStatus,
+        CancellationToken ct)
+    {
+        if (!string.Equals(stripeStatus, "succeeded", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var entity = await _db.Reservaciones
+            .FirstOrDefaultAsync(r => r.IdReservacion == reservacionId, ct)
+            .ConfigureAwait(false);
+
+        if (entity is null || entity.Pagado)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(entity.StripePaymentIntentId) &&
+            !string.Equals(entity.StripePaymentIntentId, paymentIntentId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(entity.StripePaymentIntentId))
+        {
+            entity.AsignarStripePaymentIntent(paymentIntentId);
+        }
+
+        entity.MarcarComoPagada();
+        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<ReembolsoCreadoDto> ReembolsarAsync(

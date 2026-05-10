@@ -30,6 +30,31 @@ public class MetodosPagoUsuarioService : IMetodosPagoUsuarioService
         return items.Select(MapToDto).ToList();
     }
 
+    public async Task<MetodoPagoGuardadoDto> AsegurarContraEntregaAsync(string usuarioId, CancellationToken ct = default)
+    {
+        const string nombreContraEntrega = "Contra entrega";
+
+        var existente = await _db.MetodosPago
+            .FirstOrDefaultAsync(
+                m => m.UsuarioId == usuarioId
+                    && m.Activo
+                    && m.StripePaymentMethodId == null
+                    && m.NombreMetodo == nombreContraEntrega,
+                ct)
+            .ConfigureAwait(false);
+
+        if (existente is not null)
+        {
+            return MapToDto(existente);
+        }
+
+        var entidad = MetodoPago.Crear(usuarioId, nombreContraEntrega);
+        _db.MetodosPago.Add(entidad);
+        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        return MapToDto(entidad);
+    }
+
     public async Task<MetodoPagoGuardadoDto> GuardarAsync(string usuarioId, GuardarMetodoPagoDto dto, CancellationToken ct = default)
     {
         var pmId = dto.StripePaymentMethodId?.Trim()
