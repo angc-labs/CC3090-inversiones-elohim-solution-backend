@@ -186,6 +186,19 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ElohimShopDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("SuperAdminSeeder");
+
+    await SuperAdminSeeder.SeedAsync(
+        dbContext,
+        builder.Configuration,
+        app.Environment.IsDevelopment(),
+        logger);
+}
+
 app.Use(async (context, next) =>
 {
     context.Request.EnableBuffering();
