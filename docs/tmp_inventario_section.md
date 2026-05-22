@@ -64,3 +64,19 @@ Authorization: Bearer <token>
   "error": "No tenés permisos (rol administrador requerido)."
 }
 ```
+
+### GET `/api/admin/inventario/exportar`
+
+Exporta el inventario filtrado a CSV. Usa los mismos filtros que GET `/api/admin/inventario` y devuelve el archivo directamente con `Content-Type: text/csv` y `Content-Disposition: attachment; filename=inventario.csv`.
+
+**Query params:**
+```
+?q=string                     (opcional) Búsqueda por nombre o código
+?categoriaId=string           (opcional) ID de categoría
+?estado=critico|normal|agotado (opcional) Filtrar por estado de stock
+?orderBy=nombre|stockActual|precio|fechaVencimiento (opcional)
+?order=asc|desc               (opcional, default: desc)
+```
+
+**CSV columns:**
+`código, nombre, categoría, marca, precio, stock actual, stock mínimo, estado, valor stock, fecha vencimiento, descuento activo, fecha fin oferta`

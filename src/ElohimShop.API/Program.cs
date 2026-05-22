@@ -119,6 +119,7 @@ builder.Services.AddScoped<IMetodosPagoUsuarioService, MetodosPagoUsuarioService
 builder.Services.AddScoped<IPasswordHashing, PasswordHashingService>();
 builder.Services.AddScoped<IInventarioRepository, InventarioRepository>();
 builder.Services.AddScoped<IGetInventarioUseCase, GetInventarioUseCase>();
+builder.Services.AddScoped<IExportInventarioUseCase, ExportInventarioUseCase>();
 
 builder.Services.Configure<StripePaymentOptions>(
     builder.Configuration.GetSection(StripePaymentOptions.SectionName));

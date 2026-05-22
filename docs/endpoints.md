@@ -395,6 +395,47 @@ Authorization: Bearer <token>
 
 ---
 
+### GET `/api/admin/inventario/exportar`
+
+Exporta el inventario filtrado a CSV para descarga directa.
+
+> 🔒 Requiere rol `administrador`.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query params:**
+```
+?q=string                     (opcional) Búsqueda por nombre o código
+?categoriaId=string           (opcional) ID de categoría
+?estado=critico|normal|agotado (opcional) Filtrar por estado de stock
+?orderBy=nombre|stockActual|precio|fechaVencimiento (opcional)
+?order=asc|desc               (opcional, default: desc)
+```
+
+**Response `200 OK`:**
+- Archivo CSV descargable con encabezados
+- `Content-Type: text/csv`
+- `Content-Disposition: attachment; filename=inventario.csv`
+
+Las columnas del CSV son:
+- `código`
+- `nombre`
+- `categoría`
+- `marca`
+- `precio`
+- `stock actual`
+- `stock mínimo`
+- `estado`
+- `valor stock`
+- `fecha vencimiento`
+- `descuento activo`
+- `fecha fin oferta`
+
+---
+
 ### GET `/api/productos/buscar`
 
 Busca productos por nombre desde la barra de búsqueda.

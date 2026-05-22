@@ -27,16 +27,10 @@ public class InventarioProductoDto
     public int StockMinimo { get; set; }
     public string Estado { get; set; } = string.Empty;
     public long ValorStock { get; set; }
+    public bool DescuentoActivo { get; set; }
+    public DateTime? FechaFinOferta { get; set; }
     public DateTime FechaVencimiento { get; set; }
     public string? ImagenPrincipal { get; set; }
-}
-
-public class InventarioResumenDto
-{
-    public int TotalProductos { get; set; }
-    public int StockNormal { get; set; }
-    public int StockCritico { get; set; }
-    public long ValorInventario { get; set; }
 }
 
 public class InventarioResponseDto
@@ -46,4 +40,12 @@ public class InventarioResponseDto
     public int Total { get; set; }
     public int Pagina { get; set; }
     public int Limite { get; set; }
+}
+
+public class InventarioResumenDto
+{
+    public int TotalProductos { get; set; }
+    public int StockNormal { get; set; }
+    public int StockCritico { get; set; }
+    public long ValorInventario { get; set; }
 }
