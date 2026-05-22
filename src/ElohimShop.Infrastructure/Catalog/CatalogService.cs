@@ -83,6 +83,8 @@ public class CatalogService : ICatalogService
     public async Task<ProductoPaginacionDto> ObtenerProductosAsync(
         string? categoriaId,
         string? marcaId,
+        string? orderBy,
+        string? order,
         int pagina,
         int limite,
         CancellationToken cancellationToken)
@@ -99,10 +101,21 @@ public class CatalogService : ICatalogService
             query = query.Where(p => p.IdMarca == marcaId);
         }
 
+        var orderByNormalized = orderBy?.Trim().ToLower();
+        var orderNormalized = order?.Trim().ToLower() == "desc" ? "desc" : "asc";
+
+        query = orderByNormalized switch
+        {
+            "nombre" => orderNormalized == "asc" ? query.OrderBy(p => p.NombreProducto) : query.OrderByDescending(p => p.NombreProducto),
+            "stockactual" => orderNormalized == "asc" ? query.OrderBy(p => p.StockActual) : query.OrderByDescending(p => p.StockActual),
+            "precio" => orderNormalized == "asc" ? query.OrderBy(p => p.Precio) : query.OrderByDescending(p => p.Precio),
+            "fechavencimiento" => orderNormalized == "asc" ? query.OrderBy(p => p.FechaVencimiento) : query.OrderByDescending(p => p.FechaVencimiento),
+            _ => query.OrderByDescending(p => p.FechaCreacion)
+        };
+
         var total = await query.CountAsync(cancellationToken);
 
         var productos = await query
-            .OrderByDescending(p => p.FechaCreacion)
             .Skip((pagina - 1) * limite)
             .Take(limite)
             .Select(p => new ProductoListadoDto
@@ -113,6 +126,7 @@ public class CatalogService : ICatalogService
                 Descripcion = p.Descripcion,
                 Precio = p.Precio,
                 StockActual = p.StockActual,
+                StockMinimo = p.StockMinimo,
                 IdMarca = p.IdMarca,
                 CategoriaId = p.CategoriaId,
                 ImagenPrincipal = p.ImagenPrincipal,

@@ -40,6 +40,8 @@ public class CatalogController : ControllerBase
     public async Task<IActionResult> ObtenerProductos(
         [FromQuery] string? category,
         [FromQuery] string? brand,
+        [FromQuery(Name = "orderBy")] string? orderBy,
+        [FromQuery(Name = "order")] string? order,
         [FromQuery] int page = 1,
         [FromQuery] int limit = 20,
         CancellationToken cancellationToken = default)
@@ -48,7 +50,7 @@ public class CatalogController : ControllerBase
         if (limit < 1) limit = 1;
         if (limit > 100) limit = 100;
 
-        var resultado = await _catalogService.ObtenerProductosAsync(category, brand, page, limit, cancellationToken);
+        var resultado = await _catalogService.ObtenerProductosAsync(category, brand, orderBy, order, page, limit, cancellationToken);
         return Ok(resultado);
     }
 

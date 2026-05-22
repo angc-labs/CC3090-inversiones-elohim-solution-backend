@@ -291,14 +291,16 @@ Lista todas las categorías disponibles.
 
 ### GET `/api/productos`
 
-Lista productos con filtros y paginación.
+Lista productos con filtros, ordenamiento y paginación.
 
 **Query params:**
 ```
-?category=string   (opcional) ID de categoría
-?brand=string      (opcional) ID de marca
-?page=int          (opcional, default: 1)
-?limit=int         (opcional, default: 20)
+?category=string      (opcional) ID de categoría
+?brand=string         (opcional) ID de marca
+?orderBy=nombre|stockActual|precio|fechaVencimiento (opcional)
+?order=asc|desc       (opcional, default: desc)
+?page=int             (opcional, default: 1)
+?limit=int            (opcional, default: 20)
 ```
 
 **Response `200 OK`:**
@@ -315,6 +317,7 @@ Lista productos con filtros y paginación.
       "descripcion": "string",
       "precio": 0,
       "stockActual": 0,
+      "stockMinimo": 0,
       "idMarca": "string",
       "categoriaId": "string",
       "imagenPrincipal": "string (URL)",
