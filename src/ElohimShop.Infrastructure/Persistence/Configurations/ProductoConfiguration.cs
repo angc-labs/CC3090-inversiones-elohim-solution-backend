@@ -37,9 +37,20 @@ public class ProductoConfiguration : IEntityTypeConfiguration<Producto>
             .IsRequired()
             .HasColumnName("stock_actual");
 
+        builder.Property(p => p.StockMinimo)
+            .IsRequired()
+            .HasColumnName("stock_minimo");
+
         builder.Property(p => p.IdMarca)
             .HasMaxLength(255)
             .HasColumnName("id_marca");
+
+        builder.Property(p => p.DescuentoPorcentaje)
+            .HasColumnName("descuento_porcentaje");
+
+        builder.Property(p => p.OfertaHasta)
+            .HasColumnType("timestamp with time zone")
+            .HasColumnName("oferta_hasta");
 
         builder.Property(p => p.CategoriaId)
             .HasMaxLength(255)

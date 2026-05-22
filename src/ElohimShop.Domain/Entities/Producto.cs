@@ -12,8 +12,11 @@ public class Producto
     public string? Descripcion { get; private set; }
     public int Precio { get; private set; }
     public int StockActual { get; private set; }
+    public int StockMinimo { get; private set; }
     public string? IdMarca { get; private set; }
     public string? CategoriaId { get; private set; }
+    public int? DescuentoPorcentaje { get; private set; }
+    public DateTime? OfertaHasta { get; private set; }
     public DateTime FechaVencimiento { get; private set; }
     public string? ImagenPrincipal { get; private set; }
     public DateTime FechaCreacion { get; private set; }
@@ -31,7 +34,10 @@ public class Producto
         string? idMarca = null,
         string? categoriaId = null,
         DateTime? fechaVencimiento = null,
-        string? imagenPrincipal = null)
+        string? imagenPrincipal = null,
+        int stockMinimo = 0,
+        int? descuentoPorcentaje = null,
+        DateTime? ofertaHasta = null)
     {
         var ahora = DateTime.UtcNow;
 
@@ -41,6 +47,9 @@ public class Producto
             NombreProducto = nombreProducto.Trim(),
             Precio = precio,
             StockActual = stockActual,
+            StockMinimo = stockMinimo,
+            DescuentoPorcentaje = descuentoPorcentaje,
+            OfertaHasta = ofertaHasta,
             Descripcion = descripcion?.Trim(),
             IdMarca = idMarca,
             CategoriaId = categoriaId,
