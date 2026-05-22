@@ -145,4 +145,71 @@ public class CatalogController : ControllerBase
         var resultado = await _productService.CreateManyAsync(requests, cancellationToken);
         return Ok(resultado);
     }
+
+    [Authorize(Roles = "administrador")]
+    [HttpPut("productos/{id}")]
+    [ProducesResponseType(typeof(ProductResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ActualizarProducto(
+        string id,
+        [FromBody] UpdateProductRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _productService.UpdateAsync(id, request, cancellationToken);
+        if (resultado is null)
+        {
+            return NotFound(new { error = "Producto no encontrado." });
+        }
+
+        return Ok(resultado);
+    }
+
+    [Authorize(Roles = "administrador")]
+    [HttpPatch("productos/{id}/stock")]
+    [ProducesResponseType(typeof(ProductResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ActualizarStock(
+        string id,
+        [FromBody] UpdateStockRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _productService.UpdateStockAsync(id, request, cancellationToken);
+        if (resultado is null)
+        {
+            return NotFound(new { error = "Producto no encontrado." });
+        }
+
+        return Ok(resultado);
+    }
+
+    [Authorize(Roles = "administrador")]
+    [HttpPost("productos/{id}/oferta")]
+    [ProducesResponseType(typeof(ProductResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CrearOferta(
+        string id,
+        [FromBody] CreateProductOfferRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await _productService.CreateOfferAsync(id, request, cancellationToken);
+        if (resultado is null)
+        {
+            return NotFound(new { error = "Producto no encontrado." });
+        }
+
+        return Ok(resultado);
+    }
+
+    [Authorize(Roles = "administrador")]
+    [HttpDelete("productos/{id}/oferta")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> EliminarOferta(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var ok = await _productService.DeleteOfferAsync(id, cancellationToken);
+        if (!ok) return NotFound(new { error = "Producto no encontrado." });
+        return NoContent();
+    }
 }

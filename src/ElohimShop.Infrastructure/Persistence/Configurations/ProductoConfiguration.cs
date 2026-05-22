@@ -64,6 +64,18 @@ public class ProductoConfiguration : IEntityTypeConfiguration<Producto>
             .HasColumnType("timestamp with time zone")
             .HasColumnName("fecha_actualizacion");
 
+        builder.Property(p => p.EnOferta)
+            .IsRequired()
+            .HasColumnName("en_oferta")
+            .HasDefaultValue(false);
+
+        builder.Property(p => p.PrecioOferta)
+            .HasColumnName("precio_oferta");
+
+        builder.Property(p => p.FechaFinOferta)
+            .HasColumnType("timestamp with time zone")
+            .HasColumnName("fecha_fin_oferta");
+
         builder.HasOne(p => p.Marca)
             .WithMany(m => m.Productos)
             .HasForeignKey(p => p.IdMarca)

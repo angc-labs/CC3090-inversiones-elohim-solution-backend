@@ -153,7 +153,10 @@ public class CatalogService : ICatalogService
             ImagenPrincipal = producto.ImagenPrincipal,
             FechaVencimiento = producto.FechaVencimiento,
             FechaCreacion = producto.FechaCreacion,
-            FechaActualizacion = producto.FechaActualizacion
+            FechaActualizacion = producto.FechaActualizacion,
+            EnOferta = producto.EnOferta,
+            PrecioOferta = producto.PrecioOferta,
+            FechaFinOferta = producto.FechaFinOferta
         };
     }
 

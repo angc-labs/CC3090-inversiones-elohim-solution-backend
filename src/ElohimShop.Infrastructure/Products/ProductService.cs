@@ -195,7 +195,10 @@ public class ProductService : IProductService
                 producto.FechaVencimiento,
                 producto.ImagenPrincipal,
                 producto.FechaCreacion,
-                producto.FechaActualizacion))
+                producto.FechaActualizacion,
+                producto.EnOferta,
+                producto.PrecioOferta,
+                producto.FechaFinOferta))
             .ToListAsync(cancellationToken);
     }
 
@@ -213,6 +216,59 @@ public class ProductService : IProductService
             producto.FechaVencimiento,
             producto.ImagenPrincipal,
             producto.FechaCreacion,
-            producto.FechaActualizacion);
+            producto.FechaActualizacion,
+            producto.EnOferta,
+            producto.PrecioOferta,
+            producto.FechaFinOferta);
+    }
+
+    public async Task<ProductResponseDto?> UpdateAsync(string id, UpdateProductRequestDto request, CancellationToken cancellationToken)
+    {
+        var producto = await _dbContext.Productos.FirstOrDefaultAsync(p => p.IdProducto == id, cancellationToken);
+        if (producto is null) return null;
+
+        producto.Actualizar(
+            request.CodigoProducto,
+            request.NombreProducto,
+            request.Precio,
+            request.StockActual,
+            request.Descripcion,
+            request.IdMarca,
+            request.CategoriaId,
+            request.FechaVencimiento,
+            request.ImagenPrincipal);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return MapToResponse(producto);
+    }
+
+    public async Task<ProductResponseDto?> UpdateStockAsync(string id, UpdateStockRequestDto request, CancellationToken cancellationToken)
+    {
+        var producto = await _dbContext.Productos.FirstOrDefaultAsync(p => p.IdProducto == id, cancellationToken);
+        if (producto is null) return null;
+
+        producto.AjustarStock(request.StockActual);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return MapToResponse(producto);
+    }
+
+    public async Task<ProductResponseDto?> CreateOfferAsync(string id, CreateProductOfferRequestDto request, CancellationToken cancellationToken)
+    {
+        var producto = await _dbContext.Productos.FirstOrDefaultAsync(p => p.IdProducto == id, cancellationToken);
+        if (producto is null) return null;
+
+        producto.AplicarOferta(request.PrecioOferta, request.FechaFinOferta);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return MapToResponse(producto);
+    }
+
+    public async Task<bool> DeleteOfferAsync(string id, CancellationToken cancellationToken)
+    {
+        var producto = await _dbContext.Productos.FirstOrDefaultAsync(p => p.IdProducto == id, cancellationToken);
+        if (producto is null) return false;
+
+        producto.RemoverOferta();
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }
