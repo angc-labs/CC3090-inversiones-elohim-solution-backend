@@ -38,8 +38,6 @@ public class AuthController : ControllerBase
                 var existeAdministrador = await _dbContext.Usuarios
                     .AsNoTracking()
                     .AnyAsync(u => u.TipoUsuario == "administrador", cancellationToken);
-
-                // Bootstrap: si no existe ningun admin, permitimos crear el primero sin token admin.
                 if (callerRole != "administrador" && existeAdministrador)
                 {
                     return StatusCode(403, new { error = "No tenés permisos para registrar administradores." });

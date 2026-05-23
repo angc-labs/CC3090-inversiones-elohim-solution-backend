@@ -17,9 +17,6 @@ public class AdminUsuariosController : ControllerBase
         _adminUsuarioService = adminUsuarioService;
     }
 
-    /// <summary>
-    /// Lista todos los usuarios. Soporta filtros opcionales por búsqueda, tipo y estado.
-    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<UsuarioAdminDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -38,9 +35,6 @@ public class AdminUsuariosController : ControllerBase
         return Ok(usuarios);
     }
 
-    /// <summary>
-    /// Cambia el estado (activo/inactivo) de un usuario.
-    /// </summary>
     [HttpPut("{id}/estado")]
     [ProducesResponseType(typeof(UsuarioAdminDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

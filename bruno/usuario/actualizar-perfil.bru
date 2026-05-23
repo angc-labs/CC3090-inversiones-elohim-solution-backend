@@ -1,0 +1,23 @@
+meta {
+  name: Actualizar Perfil
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/usuario/me
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "nombre": "Nombre Nuevo",
+    "apellido": "Apellido Nuevo",
+    "telefono": "55551234"
+  }
+}
