@@ -1,0 +1,21 @@
+meta {
+  name: Listar Usuarios
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/admin/usuarios
+  body: none
+  auth: bearer
+}
+
+params:query {
+  busqueda: 
+  tipoUsuario: 
+  estado: 
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}

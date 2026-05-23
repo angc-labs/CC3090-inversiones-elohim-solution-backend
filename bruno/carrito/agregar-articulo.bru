@@ -1,0 +1,22 @@
+meta {
+  name: Agregar Articulo
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/carrito/articulos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "productoId": "PRODUCTO_ID_AQUI",
+    "cantidad": 1
+  }
+}

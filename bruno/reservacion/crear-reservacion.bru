@@ -1,0 +1,21 @@
+meta {
+  name: Crear Reservacion
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/reservacion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "metodoPagoId": "METODO_PAGO_ID_AQUI"
+  }
+}

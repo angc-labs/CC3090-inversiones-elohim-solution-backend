@@ -1,0 +1,21 @@
+meta {
+  name: Cambiar Estado Usuario
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/admin/usuarios/6e3deced-f2a2-43e4-a1cb-ca08e8c4bd42/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "estado": false
+  }
+}
