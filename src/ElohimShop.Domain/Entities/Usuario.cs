@@ -106,6 +106,11 @@ public class Usuario
         }
     }
 
+    public void CambiarEstado(bool nuevoEstado)
+    {
+        Estado = nuevoEstado;
+    }
+
     public void ActualizarContrasena(string contrasenaHash)
     {
         Contrasena = contrasenaHash;

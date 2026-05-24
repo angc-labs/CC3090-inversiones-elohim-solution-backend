@@ -215,4 +215,43 @@ public class ProductService : IProductService
             producto.FechaCreacion,
             producto.FechaActualizacion);
     }
+
+    public async Task<ProductResponseDto> UpdateAsync(string id, UpdateProductRequestDto request, CancellationToken cancellationToken)
+    {
+        var producto = await _dbContext.Productos
+            .FirstOrDefaultAsync(p => p.IdProducto == id, cancellationToken);
+
+        if (producto is null)
+        {
+            throw new InvalidOperationException("Producto no encontrado.");
+        }
+
+        producto.Actualizar(
+            request.NombreProducto,
+            request.Precio,
+            request.StockActual,
+            request.Descripcion,
+            request.IdMarca,
+            request.CategoriaId,
+            request.FechaVencimiento,
+            request.ImagenPrincipal);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return MapToResponse(producto);
+    }
+
+    public async Task DeleteAsync(string id, CancellationToken cancellationToken)
+    {
+        var producto = await _dbContext.Productos
+            .FirstOrDefaultAsync(p => p.IdProducto == id, cancellationToken);
+
+        if (producto is null)
+        {
+            throw new InvalidOperationException("Producto no encontrado.");
+        }
+
+        _dbContext.Productos.Remove(producto);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

@@ -1,0 +1,15 @@
+meta {
+  name: Obtener Carrito
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/carrito
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}

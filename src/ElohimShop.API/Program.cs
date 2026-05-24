@@ -7,11 +7,13 @@ using ElohimShop.Application.Catalog;
 using ElohimShop.Application.Carrito;
 using ElohimShop.Application.Reservacion;
 using ElohimShop.Application.Pagos;
+using ElohimShop.Application.Admin;
 using ElohimShop.Infrastructure.Auth;
 using ElohimShop.Infrastructure.Products;
 using ElohimShop.Infrastructure.User;
 using ElohimShop.Infrastructure.Catalog;
 using ElohimShop.Infrastructure.Security;
+using ElohimShop.Infrastructure.Admin;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -72,13 +74,12 @@ builder.Services.AddSwaggerGen(options =>
     });
 
     options.AddSecurityRequirement(_ => new Microsoft.OpenApi.OpenApiSecurityRequirement
+{
     {
-        {
-            new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer"),
-            new List<string>()
-        }
-    });
-
+        new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer"),
+        new List<string>()
+    }
+});
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
@@ -115,6 +116,7 @@ builder.Services.AddScoped<IPagosService, StripePagosService>();
 builder.Services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler>();
 builder.Services.AddScoped<IMetodosPagoUsuarioService, MetodosPagoUsuarioService>();
 builder.Services.AddScoped<IPasswordHashing, PasswordHashingService>();
+builder.Services.AddScoped<IAdminUsuarioService, AdminUsuarioService>();
 
 builder.Services.Configure<StripePaymentOptions>(
     builder.Configuration.GetSection(StripePaymentOptions.SectionName));
