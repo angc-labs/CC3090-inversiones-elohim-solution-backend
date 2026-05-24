@@ -30,7 +30,6 @@ Variables útiles en `.env` / `docker-compose.yml`:
 ## Esquema de base de datos
 
 **Fuente de verdad:** `../db/elohim_db.sql`  
-**Parches idempotentes:** `../db/patch/`
 
 El contenedor backend aplica SQL en el arranque (`entrypoint.sh`), no migraciones EF.
 

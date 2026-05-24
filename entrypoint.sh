@@ -28,15 +28,6 @@ if [ "${TABLE_EXISTS}" != "1" ]; then
   fi
 fi
 
-if [ -d /db/patch ]; then
-  for patch in /db/patch/*.sql; do
-    if [ -f "${patch}" ]; then
-      echo "Applying patch ${patch}..."
-      psql -h "${DB_HOST}" -U "${DB_USER}" -d "${DB_NAME}" -v ON_ERROR_STOP=1 -f "${patch}"
-    fi
-  done
-fi
-
 echo "Starting application..."
 cd /app
 exec dotnet ElohimShop.API.dll

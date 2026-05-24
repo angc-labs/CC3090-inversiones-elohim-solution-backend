@@ -34,8 +34,7 @@ Si necesitas una referencia en sentido contrario, para. Algo está mal en el dis
 ## 3. Base de datos y Docker
 
 - Esquema SQL: `../db/elohim_db.sql` (no depender de `ef database update` en Docker).
-- Parches: `../db/patch/`.
-- `entrypoint.sh` aplica SQL + parches; luego `DemoDataSeeder` si `SEED_DATA=true` (`backend/.env`).
+- `entrypoint.sh` aplica solo el esquema SQL; luego `DemoDataSeeder` si `SEED_DATA=true` (`backend/.env`).
 - Mapeos EF: siempre `HasColumnName("snake_case")` alineado al SQL.
 
 Documentación API: [docs/endpoints.md](docs/endpoints.md) · Swagger en Development.
