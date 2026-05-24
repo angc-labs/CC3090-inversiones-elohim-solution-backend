@@ -50,4 +50,25 @@ public class Producto
             FechaActualizacion = ahora
         };
     }
+
+    public void Actualizar(
+        string nombreProducto,
+        int precio,
+        int stockActual,
+        string? descripcion,
+        string? idMarca,
+        string? categoriaId,
+        DateTime? fechaVencimiento,
+        string? imagenPrincipal)
+    {
+        NombreProducto = nombreProducto.Trim();
+        Precio = precio;
+        StockActual = stockActual;
+        Descripcion = descripcion?.Trim();
+        IdMarca = idMarca;
+        CategoriaId = categoriaId;
+        FechaVencimiento = fechaVencimiento ?? FechaVencimiento;
+        ImagenPrincipal = imagenPrincipal?.Trim();
+        FechaActualizacion = DateTime.UtcNow;
+    }
 }

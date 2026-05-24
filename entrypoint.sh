@@ -11,7 +11,7 @@ echo "Database is up - restoring packages and applying migrations..."
 export ConnectionStrings__DefaultConnection="Host=${DB_HOST:-db};Port=5432;Database=${DB_NAME:-elohim};Username=${DB_USER:-postgres};Password=${DB_PASSWORD}"
 cd /src
 dotnet restore "src/ElohimShop.API/ElohimShop.API.csproj"
-dotnet ef database update --project src/ElohimShop.Infrastructure --startup-project src/ElohimShop.API
+dotnet ef database update --project src/ElohimShop.Infrastructure --startup-project src/ElohimShop.API --connection "Host=${DB_HOST:-db};Port=5432;Database=${DB_NAME:-elohim};Username=${DB_USER:-postgres};Password=${DB_PASSWORD}"
 
 echo "Starting application..."
 cd /app

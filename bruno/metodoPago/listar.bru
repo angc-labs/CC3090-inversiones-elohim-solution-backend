@@ -1,0 +1,15 @@
+meta {
+  name: Listar Metodos de Pago
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/metodoPago
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}

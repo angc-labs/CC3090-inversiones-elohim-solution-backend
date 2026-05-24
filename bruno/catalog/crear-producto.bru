@@ -1,0 +1,27 @@
+meta {
+  name: Crear Producto (Admin)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/productos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "codigoProducto": "PROD-001",
+    "nombreProducto": "Producto de prueba",
+    "descripcion": "Descripcion del producto",
+    "precio": 99.99,
+    "stock": 10,
+    "categoriaId": "",
+    "marcaId": ""
+  }
+}

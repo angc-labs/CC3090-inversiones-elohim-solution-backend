@@ -1,0 +1,15 @@
+meta {
+  name: Estado de Pago
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/pagos/PAYMENT_INTENT_ID_AQUI/status
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}

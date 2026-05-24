@@ -1,0 +1,15 @@
+meta {
+  name: Eliminar Articulo
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/api/carrito/articulos/ARTICULO_ID_AQUI
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}

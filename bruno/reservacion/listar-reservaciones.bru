@@ -1,0 +1,15 @@
+meta {
+  name: Listar Reservaciones
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/reservacion
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}

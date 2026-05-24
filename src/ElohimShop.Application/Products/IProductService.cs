@@ -5,4 +5,6 @@ public interface IProductService
     Task<ProductResponseDto> CreateAsync(CreateProductRequestDto request, CancellationToken cancellationToken);
     Task<BulkCreateProductsResultDto> CreateManyAsync(IReadOnlyCollection<CreateProductRequestDto> requests, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<ProductResponseDto>> GetAllAsync(CancellationToken cancellationToken);
+    Task<ProductResponseDto> UpdateAsync(string id, UpdateProductRequestDto request, CancellationToken cancellationToken);
+    Task DeleteAsync(string id, CancellationToken cancellationToken);
 }
