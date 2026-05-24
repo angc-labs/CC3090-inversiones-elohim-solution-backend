@@ -8,6 +8,7 @@ public class ProductoListadoDto
     public string? Descripcion { get; init; }
     public int Precio { get; init; }
     public int StockActual { get; init; }
+    public int StockMinimo { get; init; }
     public string? IdMarca { get; init; }
     public string? CategoriaId { get; init; }
     public string? ImagenPrincipal { get; init; }
