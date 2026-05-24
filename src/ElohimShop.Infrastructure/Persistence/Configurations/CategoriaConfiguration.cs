@@ -14,7 +14,8 @@ public class CategoriaConfiguration : IEntityTypeConfiguration<Categoria>
 
         builder.Property(c => c.Id)
             .IsRequired()
-            .HasMaxLength(255);
+            .HasMaxLength(255)
+            .HasColumnName("id");
 
         builder.Property(c => c.NombreCategoria)
             .IsRequired()
@@ -22,10 +23,12 @@ public class CategoriaConfiguration : IEntityTypeConfiguration<Categoria>
             .HasColumnName("nombre_categoria");
 
         builder.Property(c => c.Descripcion)
-            .HasColumnType("text");
+            .HasColumnType("text")
+            .HasColumnName("descripcion");
 
         builder.Property(c => c.FechaCreacion)
-            .HasColumnType("timestamp with time zone");
+            .HasColumnType("timestamp with time zone")
+            .HasColumnName("fecha_creacion");
 
         builder.HasMany(c => c.Productos)
             .WithOne(p => p.Categoria)

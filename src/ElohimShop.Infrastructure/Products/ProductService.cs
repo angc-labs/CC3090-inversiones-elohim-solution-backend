@@ -31,11 +31,11 @@ public class ProductService : IProductService
             request.NombreProducto,
             request.Precio,
             request.StockActual,
-            request.Descripcion,
-            request.IdMarca,
-            request.CategoriaId,
-            request.FechaVencimiento,
-            request.ImagenPrincipal);
+            descripcion: request.Descripcion,
+            idMarca: request.IdMarca,
+            categoriaId: request.CategoriaId,
+            fechaVencimiento: request.FechaVencimiento,
+            imagenPrincipal: request.ImagenPrincipal);
 
         _dbContext.Productos.Add(producto);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -151,11 +151,11 @@ public class ProductService : IProductService
                 request.NombreProducto,
                 request.Precio,
                 request.StockActual,
-                request.Descripcion,
-                request.IdMarca,
-                request.CategoriaId,
-                request.FechaVencimiento,
-                request.ImagenPrincipal);
+                descripcion: request.Descripcion,
+                idMarca: request.IdMarca,
+                categoriaId: request.CategoriaId,
+                fechaVencimiento: request.FechaVencimiento,
+                imagenPrincipal: request.ImagenPrincipal);
 
             productosNuevos.Add(producto);
         }
@@ -230,11 +230,11 @@ public class ProductService : IProductService
             request.NombreProducto,
             request.Precio,
             request.StockActual,
-            request.Descripcion,
-            request.IdMarca,
-            request.CategoriaId,
-            request.FechaVencimiento,
-            request.ImagenPrincipal);
+            descripcion: request.Descripcion,
+            idMarca: request.IdMarca,
+            categoriaId: request.CategoriaId,
+            fechaVencimiento: request.FechaVencimiento,
+            imagenPrincipal: request.ImagenPrincipal);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

@@ -12,4 +12,13 @@ public interface IAdminUsuarioService
         string usuarioId,
         bool nuevoEstado,
         CancellationToken cancellationToken);
+
+    Task<UsuarioAdminDto> CrearAsync(
+        CrearUsuarioAdminRequestDto request,
+        CancellationToken cancellationToken);
+
+    Task<UsuarioAdminDto> CambiarRolAsync(
+        string usuarioId,
+        CambiarRolUsuarioRequestDto request,
+        CancellationToken cancellationToken);
 }

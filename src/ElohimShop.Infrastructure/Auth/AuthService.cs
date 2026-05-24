@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using ElohimShop.Application.Admin;
 using ElohimShop.Application.Auth;
 using ElohimShop.Domain.Entities;
 using ElohimShop.Infrastructure.Persistence;
@@ -65,6 +66,10 @@ public class AuthService : IAuthService
 
         var token = GenerateJwt(usuario);
 
+        var esSuperAdmin = SuperAdminHelper.IsSuperAdminEmail(
+            usuario.Correo,
+            _configuration["SuperAdmin:Email"]);
+
         return new AuthResponseDto(
             usuario.Id,
             usuario.Correo,
@@ -73,7 +78,8 @@ public class AuthService : IAuthService
             null,
             usuario.ClientePerfil?.TipoCliente,
             token.Token,
-            token.ExpiresAt);
+            token.ExpiresAt,
+            esSuperAdmin);
     }
 
     public async Task<AuthResponseDto> RegisterAdminAsync(RegisterRequestDto request, CancellationToken cancellationToken)
@@ -107,6 +113,10 @@ public class AuthService : IAuthService
 
         var token = GenerateJwt(usuario);
 
+        var esSuperAdminAdmin = SuperAdminHelper.IsSuperAdminEmail(
+            usuario.Correo,
+            _configuration["SuperAdmin:Email"]);
+
         return new AuthResponseDto(
             usuario.Id,
             usuario.Correo,
@@ -115,7 +125,8 @@ public class AuthService : IAuthService
             usuario.AdministradorPerfil?.Rol,
             null,
             token.Token,
-            token.ExpiresAt);
+            token.ExpiresAt,
+            esSuperAdminAdmin);
     }
 
     public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken)
@@ -134,6 +145,10 @@ public class AuthService : IAuthService
 
         var token = GenerateJwt(usuario);
 
+        var esSuperAdmin = SuperAdminHelper.IsSuperAdminEmail(
+            usuario.Correo,
+            _configuration["SuperAdmin:Email"]);
+
         return new AuthResponseDto(
             usuario.Id,
             usuario.Correo,
@@ -142,7 +157,8 @@ public class AuthService : IAuthService
             usuario.AdministradorPerfil?.Rol,
             usuario.ClientePerfil?.TipoCliente,
             token.Token,
-            token.ExpiresAt);
+            token.ExpiresAt,
+            esSuperAdmin);
     }
 
     public Task LogoutAsync(string jti, string usuarioId, DateTime expiresAt, CancellationToken cancellationToken)
@@ -194,6 +210,11 @@ public class AuthService : IAuthService
         {
             claims.Add(new Claim("rol", usuario.AdministradorPerfil.Rol));
             claims.Add(new Claim(ClaimTypes.Role, usuario.AdministradorPerfil.Rol));
+        }
+
+        if (SuperAdminHelper.IsSuperAdminEmail(usuario.Correo, _configuration["SuperAdmin:Email"]))
+        {
+            claims.Add(new Claim("es_super_admin", "true"));
         }
 
         var tokenDescriptor = new SecurityTokenDescriptor

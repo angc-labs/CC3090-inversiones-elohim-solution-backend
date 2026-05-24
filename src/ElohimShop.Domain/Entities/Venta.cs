@@ -11,4 +11,23 @@ public class Venta
     public string EstadoVenta { get; private set; } = string.Empty;
     public Reservacion? Reservacion { get; private set; }
     public Usuario? UsuarioCajero { get; private set; }
+
+    public static Venta Crear(
+        decimal montoTotal,
+        string? reservacionId,
+        string? usuarioCajeroId,
+        DateTime? fechaVenta = null,
+        string tipoComprobante = "ticket",
+        string estadoVenta = "completada")
+    {
+        return new Venta
+        {
+            MontoTotal = montoTotal,
+            ReservacionId = reservacionId,
+            UsuarioCajeroId = usuarioCajeroId,
+            FechaVenta = fechaVenta ?? DateTime.UtcNow,
+            TipoComprobante = tipoComprobante,
+            EstadoVenta = estadoVenta
+        };
+    }
 }

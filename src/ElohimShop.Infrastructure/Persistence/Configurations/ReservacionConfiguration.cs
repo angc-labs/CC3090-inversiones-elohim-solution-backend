@@ -46,10 +46,12 @@ public class ReservacionConfiguration : IEntityTypeConfiguration<Reservacion>
             .HasColumnName("metodo_pago_id");
 
         builder.Property(r => r.Pagado)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnName("pagado");
 
         builder.Property(r => r.Observaciones)
-            .HasColumnType("text");
+            .HasColumnType("text")
+            .HasColumnName("observaciones");
 
         builder.Property(r => r.FechaLimiteRetiro)
             .IsRequired()

@@ -27,7 +27,8 @@ public class MetodoPagoConfiguration : IEntityTypeConfiguration<MetodoPago>
             .HasColumnName("nombre_metodo");
 
         builder.Property(mp => mp.Descripcion)
-            .HasColumnType("text");
+            .HasColumnType("text")
+            .HasColumnName("descripcion");
 
         builder.Property(mp => mp.StripePaymentMethodId)
             .HasMaxLength(255)
@@ -52,7 +53,8 @@ public class MetodoPagoConfiguration : IEntityTypeConfiguration<MetodoPago>
             .HasColumnName("expira_anio");
 
         builder.Property(mp => mp.Activo)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnName("activo");
 
         builder.HasMany(mp => mp.Reservaciones)
             .WithOne(r => r.MetodoPago)

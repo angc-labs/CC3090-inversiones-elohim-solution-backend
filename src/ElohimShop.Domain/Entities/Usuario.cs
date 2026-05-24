@@ -120,4 +120,54 @@ public class Usuario
     {
         StripeCustomerId = stripeCustomerId;
     }
+
+    public void AsignarPerfilCliente(string tipoCliente, string? direccion = null)
+    {
+        if (string.IsNullOrWhiteSpace(tipoCliente))
+        {
+            throw new ArgumentException("El tipo de cliente es obligatorio.");
+        }
+
+        TipoUsuario = "cliente";
+        AdministradorPerfil = null;
+
+        if (ClientePerfil is null)
+        {
+            ClientePerfil = new ClientePerfil
+            {
+                UsuarioId = Id,
+                TipoCliente = tipoCliente.Trim(),
+                Direccion = string.IsNullOrWhiteSpace(direccion) ? null : direccion.Trim()
+            };
+            return;
+        }
+
+        ClientePerfil.TipoCliente = tipoCliente.Trim();
+        ClientePerfil.Direccion = string.IsNullOrWhiteSpace(direccion)
+            ? ClientePerfil.Direccion
+            : direccion.Trim();
+    }
+
+    public void AsignarPerfilAdministrador(string rol)
+    {
+        if (rol is not ("cajero" or "administrador"))
+        {
+            throw new ArgumentException("El rol debe ser cajero o administrador.");
+        }
+
+        TipoUsuario = "administrador";
+        ClientePerfil = null;
+
+        if (AdministradorPerfil is null)
+        {
+            AdministradorPerfil = new AdministradorPerfil
+            {
+                UsuarioId = Id,
+                Rol = rol
+            };
+            return;
+        }
+
+        AdministradorPerfil.Rol = rol;
+    }
 }
