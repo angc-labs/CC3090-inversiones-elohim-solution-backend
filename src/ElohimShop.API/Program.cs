@@ -14,6 +14,8 @@ using ElohimShop.Infrastructure.User;
 using ElohimShop.Infrastructure.Catalog;
 using ElohimShop.Infrastructure.Security;
 using ElohimShop.Infrastructure.Admin;
+using ElohimShop.Application.Inventario;
+using ElohimShop.Infrastructure.Inventario;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -117,6 +119,9 @@ builder.Services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler>();
 builder.Services.AddScoped<IMetodosPagoUsuarioService, MetodosPagoUsuarioService>();
 builder.Services.AddScoped<IPasswordHashing, PasswordHashingService>();
 builder.Services.AddScoped<IAdminUsuarioService, AdminUsuarioService>();
+builder.Services.AddScoped<IInventarioRepository, InventarioRepository>();
+builder.Services.AddScoped<IGetInventarioUseCase, GetInventarioUseCase>();
+builder.Services.AddScoped<IExportInventarioUseCase, ExportInventarioUseCase>();
 
 builder.Services.Configure<StripePaymentOptions>(
     builder.Configuration.GetSection(StripePaymentOptions.SectionName));
