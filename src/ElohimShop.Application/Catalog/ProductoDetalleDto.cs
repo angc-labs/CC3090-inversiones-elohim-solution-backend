@@ -14,4 +14,7 @@ public class ProductoDetalleDto
     public DateTime FechaVencimiento { get; init; }
     public DateTime FechaCreacion { get; init; }
     public DateTime FechaActualizacion { get; init; }
+    public bool EnOferta { get; init; }
+    public int? PrecioOferta { get; init; }
+    public DateTime? FechaFinOferta { get; init; }
 }

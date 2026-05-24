@@ -1,6 +1,7 @@
 namespace ElohimShop.Application.Products;
 
 public record UpdateProductRequestDto(
+    string CodigoProducto,
     string NombreProducto,
     int Precio,
     int StockActual,

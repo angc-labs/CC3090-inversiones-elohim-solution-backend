@@ -19,6 +19,9 @@ public class Producto
     public string? ImagenPrincipal { get; private set; }
     public DateTime FechaCreacion { get; private set; }
     public DateTime FechaActualizacion { get; private set; }
+    public bool EnOferta { get; private set; }
+    public int? PrecioOferta { get; private set; }
+    public DateTime? FechaFinOferta { get; private set; }
     public Marca? Marca { get; private set; }
     public Categoria? Categoria { get; private set; }
     public ICollection<DetalleReservacion> DetallesReservacion { get; private set; } = new List<DetalleReservacion>();
@@ -49,21 +52,26 @@ public class Producto
             CategoriaId = categoriaId,
             FechaVencimiento = fechaVencimiento ?? ahora.AddYears(1),
             ImagenPrincipal = imagenPrincipal?.Trim(),
+            EnOferta = false,
+            PrecioOferta = null,
+            FechaFinOferta = null,
             FechaCreacion = ahora,
             FechaActualizacion = ahora
         };
     }
 
     public void Actualizar(
+        string codigoProducto,
         string nombreProducto,
         int precio,
         int stockActual,
-        string? descripcion,
-        string? idMarca,
-        string? categoriaId,
-        DateTime? fechaVencimiento,
-        string? imagenPrincipal)
+        string? descripcion = null,
+        string? idMarca = null,
+        string? categoriaId = null,
+        DateTime? fechaVencimiento = null,
+        string? imagenPrincipal = null)
     {
+        CodigoProducto = codigoProducto.Trim();
         NombreProducto = nombreProducto.Trim();
         Precio = precio;
         StockActual = stockActual;
@@ -72,6 +80,28 @@ public class Producto
         CategoriaId = categoriaId;
         FechaVencimiento = fechaVencimiento ?? FechaVencimiento;
         ImagenPrincipal = imagenPrincipal?.Trim();
+        FechaActualizacion = DateTime.UtcNow;
+    }
+
+    public void AjustarStock(int nuevoStock)
+    {
+        StockActual = nuevoStock;
+        FechaActualizacion = DateTime.UtcNow;
+    }
+
+    public void AplicarOferta(int precioOferta, DateTime? fechaFinOferta)
+    {
+        EnOferta = true;
+        PrecioOferta = precioOferta;
+        FechaFinOferta = fechaFinOferta;
+        FechaActualizacion = DateTime.UtcNow;
+    }
+
+    public void RemoverOferta()
+    {
+        EnOferta = false;
+        PrecioOferta = null;
+        FechaFinOferta = null;
         FechaActualizacion = DateTime.UtcNow;
     }
 }

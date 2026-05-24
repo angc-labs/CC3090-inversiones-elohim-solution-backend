@@ -12,4 +12,7 @@ public record ProductResponseDto(
     DateTime FechaVencimiento,
     string? ImagenPrincipal,
     DateTime FechaCreacion,
-    DateTime FechaActualizacion);
+    DateTime FechaActualizacion,
+    bool EnOferta,
+    int? PrecioOferta,
+    DateTime? FechaFinOferta);
