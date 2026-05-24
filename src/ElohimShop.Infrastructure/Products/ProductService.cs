@@ -271,4 +271,18 @@ public class ProductService : IProductService
         await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    public async Task DeleteAsync(string id, CancellationToken cancellationToken)
+    {
+        var producto = await _dbContext.Productos
+            .FirstOrDefaultAsync(p => p.IdProducto == id, cancellationToken);
+
+        if (producto is null)
+        {
+            throw new InvalidOperationException("Producto no encontrado.");
+        }
+
+        _dbContext.Productos.Remove(producto);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

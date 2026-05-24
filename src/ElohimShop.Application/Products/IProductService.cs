@@ -9,4 +9,5 @@ public interface IProductService
     Task<ProductResponseDto?> UpdateStockAsync(string id, UpdateStockRequestDto request, CancellationToken cancellationToken);
     Task<ProductResponseDto?> CreateOfferAsync(string id, CreateProductOfferRequestDto request, CancellationToken cancellationToken);
     Task<bool> DeleteOfferAsync(string id, CancellationToken cancellationToken);
+    Task DeleteAsync(string id, CancellationToken cancellationToken);
 }
