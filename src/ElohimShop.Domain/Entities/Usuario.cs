@@ -2,10 +2,7 @@ namespace ElohimShop.Domain.Entities;
 
 public class Usuario
 {
-    private Usuario()
-    {
-    }
-
+    private Usuario() { }
     public string Id { get; private set; } = Guid.NewGuid().ToString();
     public string Correo { get; private set; } = string.Empty;
     public string Nombre { get; private set; } = string.Empty;
@@ -83,23 +80,48 @@ public class Usuario
         return usuario;
     }
 
+    public static Usuario CrearEmpleado(
+        string correo,
+        string nombre,
+        string contrasenaHash,
+        string? apellido = null,
+        string? telefono = null)
+    {
+        var usuario = new Usuario
+        {
+            Correo = correo.Trim(),
+            Nombre = nombre.Trim(),
+            Contrasena = contrasenaHash,
+            TipoUsuario = "empleado",
+            Apellido = string.IsNullOrWhiteSpace(apellido) ? null : apellido.Trim(),
+            Telefono = string.IsNullOrWhiteSpace(telefono) ? null : telefono.Trim(),
+            Estado = true,
+            FechaCreacion = DateTime.UtcNow
+        };
+
+        usuario.AdministradorPerfil = new AdministradorPerfil
+        {
+            UsuarioId = usuario.Id,
+            Rol = "empleado"
+        };
+
+        return usuario;
+    }
+
     public void ActualizarPerfil(string? correo, string? nombre, string? apellido, string? telefono)
     {
         if (!string.IsNullOrWhiteSpace(correo))
         {
             Correo = correo.Trim();
         }
-
         if (!string.IsNullOrWhiteSpace(nombre))
         {
             Nombre = nombre.Trim();
         }
-
         if (apellido is not null)
         {
             Apellido = string.IsNullOrWhiteSpace(apellido) ? null : apellido.Trim();
         }
-
         if (telefono is not null)
         {
             Telefono = string.IsNullOrWhiteSpace(telefono) ? null : telefono.Trim();

@@ -1,0 +1,15 @@
+meta {
+  name: Obtener Usuario Por Id
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/admin/usuarios/6e3deced-f2a2-43e4-a1cb-ca08e8c4bd42
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}

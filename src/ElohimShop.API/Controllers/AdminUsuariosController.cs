@@ -49,7 +49,6 @@ public class AdminUsuariosController : ControllerBase
         {
             return Forbid();
         }
-
         try
         {
             var resultado = await _adminUsuarioService.CambiarEstadoAsync(id, request.Estado, cancellationToken);
@@ -58,6 +57,98 @@ public class AdminUsuariosController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return NotFound(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("{id}")]
+    [ProducesResponseType(typeof(UsuarioAdminDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObtenerPorId(string id, CancellationToken cancellationToken)
+    {
+        if (!EsAdministrador()) return Forbid();
+        try
+        {
+            var usuario = await _adminUsuarioService.ObtenerPorIdAsync(id, cancellationToken);
+            return Ok(usuario);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [ProducesResponseType(typeof(UsuarioAdminDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Crear([FromBody] CrearUsuarioAdminDto dto, CancellationToken cancellationToken)
+    {
+        if (!EsAdministrador()) return Forbid();
+        try
+        {
+            var usuario = await _adminUsuarioService.CrearAsync(dto, cancellationToken);
+            return CreatedAtAction(nameof(ObtenerPorId), new { id = usuario.Id }, usuario);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
+    }
+
+    [HttpPut("{id}")]
+    [ProducesResponseType(typeof(UsuarioAdminDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Actualizar(string id, [FromBody] ActualizarUsuarioAdminDto dto, CancellationToken cancellationToken)
+    {
+        if (!EsAdministrador()) return Forbid();
+        try
+        {
+            var usuario = await _adminUsuarioService.ActualizarAsync(id, dto, cancellationToken);
+            return Ok(usuario);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("no encontrado"))
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("en uso"))
+        {
+            return Conflict(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Eliminar(string id, CancellationToken cancellationToken)
+    {
+        if (!EsAdministrador()) return Forbid();
+        try
+        {
+            await _adminUsuarioService.EliminarAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("no encontrado"))
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
         }
     }
 
