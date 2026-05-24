@@ -31,9 +31,18 @@ Si necesitas una referencia en sentido contrario, para. Algo está mal en el dis
 
 ---
 
-## 3. Contexto del negocio
+## 3. Base de datos y Docker
 
-Elohim Shop es una plataforma de comercio electrónico para Inversiones Elohim S.A.
+- Esquema SQL: `../db/elohim_db.sql` (no depender de `ef database update` en Docker).
+- Parches: `../db/patch/`.
+- `entrypoint.sh` aplica SQL + parches; luego `DemoDataSeeder` si `SEED_DATA=true` (`backend/.env`).
+- Mapeos EF: siempre `HasColumnName("snake_case")` alineado al SQL.
+
+Documentación API: [docs/endpoints.md](docs/endpoints.md) · Swagger en Development.
+
+## 4. Contexto del negocio
+
+Esmira Shop es una plataforma de comercio electrónico para Inversiones Elohim S.A.
 Los flujos principales son:
 
 - Registro e inicio de sesión de clientes
@@ -46,7 +55,7 @@ Tener este contexto presente al evaluar qué capa debe contener cada lógica.
 
 ---
 
-## 4. Convenciones de C#
+## 5. Convenciones de C#
 ```csharp
 // Clases, interfaces, métodos → PascalCase
 public class ReservacionService { }
@@ -72,7 +81,7 @@ public interface IClienteRepository { }
 
 ---
 
-## 5. Reglas de controllers
+## 6. Reglas de controllers
 
 Los controllers solo reciben, delegan y responden. Nada más.
 ```csharp

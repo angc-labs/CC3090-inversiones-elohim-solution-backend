@@ -12,6 +12,7 @@ public class Producto
     public string? Descripcion { get; private set; }
     public int Precio { get; private set; }
     public int StockActual { get; private set; }
+    public int StockMinimo { get; private set; } = 20;
     public string? IdMarca { get; private set; }
     public string? CategoriaId { get; private set; }
     public DateTime FechaVencimiento { get; private set; }
@@ -27,6 +28,7 @@ public class Producto
         string nombreProducto,
         int precio,
         int stockActual,
+        int stockMinimo = 20,
         string? descripcion = null,
         string? idMarca = null,
         string? categoriaId = null,
@@ -41,6 +43,7 @@ public class Producto
             NombreProducto = nombreProducto.Trim(),
             Precio = precio,
             StockActual = stockActual,
+            StockMinimo = stockMinimo,
             Descripcion = descripcion?.Trim(),
             IdMarca = idMarca,
             CategoriaId = categoriaId,

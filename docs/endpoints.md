@@ -1,8 +1,21 @@
-# Elohim Tienda Online — Documentación de Endpoints API
+# Esmira Shop — Documentación de la API REST
 
-> **Autenticación:** Bearer Token (JWT) en el header `Authorization: Bearer <token>`
+**Base URL (Docker):** `http://localhost:5000`  
+**Swagger (Development):** `http://localhost:5000/swagger`
 
-> **Formato:** JSON en todos los requests y responses
+> **Autenticación:** Bearer Token (JWT) en el header `Authorization: Bearer <token>`  
+> **Formato:** JSON en todos los requests y responses  
+> **Moneda:** montos en **quetzales (GTQ)** — valores numéricos sin símbolo; el frontend formatea como `Q 1,234.56`.
+
+**Claims JWT relevantes:** `tipo_usuario` (`cliente` | `administrador`), `rol` (`cajero` | `administrador` para staff), `es_super_admin` (`true` solo para el correo configurado en `SUPER_ADMIN_EMAIL`).
+
+### Credenciales demo (`SEED_DATA=true` en `backend/.env`)
+
+| Usuario | Contraseña |
+|---------|------------|
+| `superadmin@elohim.gt` | `SuperAdmin123!` (o `SUPER_ADMIN_PASSWORD`) |
+| `cliente.demo@elohim.gt` | `Demo123!` |
+| `carlos.demo@elohim.gt` | `Demo123!` (cajero) |
 
 ## Índice
 
@@ -12,6 +25,12 @@
 4. [Carrito](#4-carrito)
 5. [Reservaciones](#5-reservaciones)
 6. [Pagos (Stripe)](#6-pagos-stripe)
+7. [Admin — usuarios](#7-admin--usuarios)
+8. [Admin — ventas](#8-admin--ventas)
+9. [Admin — reportes](#9-admin--reportes)
+10. [Códigos de error comunes](#códigos-de-error-comunes)
+11. [Operación y herramientas](#operación-y-herramientas)
+12. [Referencia rápida](#referencia-rápida)
 
 ---
 
@@ -108,11 +127,12 @@ Inicia sesión con cualquier tipo de usuario y devuelve un JWT.
   "rol": "cajero | administrador | null",
   "tipoCliente": "mayorista | minorista | particular | null",
   "token": "string",
-  "expiraEn": "2026-05-15T00:00:00Z"
+  "expiraEn": "2026-05-15T00:00:00Z",
+  "esSuperAdmin": false
 }
 ```
 
->  `rol` solo viene poblado si `tipoUsuario` es `administrador`. `tipoCliente` solo viene poblado si `tipoUsuario` es `cliente`.
+>  `rol` solo viene poblado si `tipoUsuario` es `administrador`. `tipoCliente` solo viene poblado si `tipoUsuario` es `cliente`. `esSuperAdmin` es `true` para el super administrador (`SUPER_ADMIN_EMAIL`).
 
 **Response `401 Unauthorized`:**
 ```json
@@ -500,6 +520,46 @@ Authorization: Bearer <token>
 ```
 
 >  Si un registro falla, los demás válidos se insertan de todos modos.
+
+---
+
+### PUT `/api/productos/:id`
+
+Actualiza un producto existente.
+
+> 🔒 Requiere rol `administrador`.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Path params:** `:id` — ID del producto
+
+**Request body:** mismos campos que POST (parcial o completo según implementación).
+
+**Response `200 OK`:** objeto producto actualizado.
+
+**Response `404 Not Found`:** producto no encontrado.
+
+---
+
+### DELETE `/api/productos/:id`
+
+Elimina un producto del catálogo.
+
+> 🔒 Requiere rol `administrador`.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Path params:** `:id` — ID del producto
+
+**Response `204 No Content`**
+
+**Response `404 Not Found`:** producto no encontrado.
 
 ---
 
@@ -1023,6 +1083,125 @@ Authorization: Bearer <token>
 
 ---
 
+## 7. Admin — usuarios
+
+Prefijo: `/api/admin/usuarios`
+
+> 🔒 Requiere JWT con `tipo_usuario: administrador` y `rol: administrador` (no cajero), salvo donde se indique super admin.
+
+### GET `/api/admin/usuarios`
+
+Lista usuarios del sistema.
+
+**Query params:** `busqueda`, `tipoUsuario`, `estado` (opcionales)
+
+**Response `200 OK`:** array de usuarios con `id`, `nombre`, `apellido`, `correo`, `telefono`, `tipoUsuario`, `rol`, `estado`, `fechaCreacion`.
+
+---
+
+### POST `/api/admin/usuarios`
+
+Crea un usuario (cliente, cajero o administrador).
+
+**Request body:**
+```json
+{
+  "correo": "string",
+  "nombre": "string",
+  "contrasena": "string (mín. 8 caracteres)",
+  "tipoUsuario": "cliente | administrador",
+  "rol": "cajero | administrador (si tipoUsuario es administrador)",
+  "tipoCliente": "particular | minorista | mayorista (si cliente)",
+  "apellido": "string (opcional)",
+  "telefono": "string (opcional)",
+  "direccion": "string (opcional, cliente)"
+}
+```
+
+**Response `201 Created`:** usuario creado.
+
+---
+
+### PUT `/api/admin/usuarios/:id/estado`
+
+Activa o desactiva un usuario.
+
+**Request body:**
+```json
+{
+  "estado": true
+}
+```
+
+**Response `200 OK`:** usuario actualizado.
+
+---
+
+### PUT `/api/admin/usuarios/:id/rol`
+
+Cambia el rol de un usuario. **Solo super administrador** (`es_super_admin` o correo `SUPER_ADMIN_EMAIL`).
+
+**Request body:**
+```json
+{
+  "rol": "cliente | cajero | administrador",
+  "tipoCliente": "particular (opcional, al pasar a cliente)"
+}
+```
+
+**Response `200 OK`:** usuario actualizado.
+
+**Response `403 Forbidden`:** no es super admin.
+
+**Response `400 Bad Request`:** no se puede modificar el rol del super administrador.
+
+---
+
+## 8. Admin — ventas
+
+Prefijo: `/api/admin/ventas`
+
+> 🔒 Admin o cajero (`tipo_usuario: administrador`).
+
+### GET `/api/admin/ventas`
+
+Historial de ventas con resumen del día.
+
+**Query params:** `busqueda`, `fecha`, `filtroPrecio`, `filtroMetodoPago`
+
+**Response `200 OK`:**
+```json
+{
+  "resumen": {
+    "ventasHoy": 0,
+    "ingresosHoy": 0,
+    "ticketPromedio": 0,
+    "productosVendidos": 0
+  },
+  "ventas": []
+}
+```
+
+---
+
+## 9. Admin — reportes
+
+Prefijo: `/api/admin/reportes`
+
+> 🔒 Admin o cajero.
+
+**Query común:** `desde`, `hasta` (ISO), `modo` (`todos` | `ventas` | `reservaciones`) en reportes que lo soportan.
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/productos` | Productos más vendidos, KPIs y gráficos |
+| GET | `/empleados` | Rendimiento por cajero |
+| GET | `/demanda` | Demanda por horario |
+| GET | `/metodos-pago` | Distribución por método de pago |
+| GET | `/stock-critico` | Productos bajo stock mínimo |
+
+---
+
 ## Códigos de error comunes
 
 | Código | Significado |
@@ -1033,3 +1212,46 @@ Authorization: Bearer <token>
 | `404` | Not Found — recurso no encontrado |
 | `409` | Conflict — recurso duplicado (correo, código de producto) |
 | `500` | Internal Server Error — error inesperado del servidor |
+
+---
+
+## Operación y herramientas
+
+### Base de datos (Docker)
+
+- Esquema: `db/elohim_db.sql` (init Postgres)
+- Parches: `db/patch/*.sql` (aplicados en `entrypoint.sh` del backend)
+- **No** se usa `dotnet ef database update` en Docker
+- Seed demo: `SEED_DATA=true` en `backend/.env` (alias `SEED_DEMO_DATA`). Ver `backend/.env.example`.
+
+### Colección Bruno
+
+Pruebas HTTP en `backend/bruno/` con entorno `local` (`baseUrl`, tokens).
+
+---
+
+## Referencia rápida
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/api/auth/register` | No* | Registro (*admin requiere JWT admin) |
+| POST | `/api/auth/login` | No | Login (JWT) |
+| POST | `/api/auth/logout` | Bearer | Revoca token |
+| POST | `/api/auth/forgot-password` | No | Recuperación (stub) |
+| GET | `/api/marcas` | No | Listar marcas |
+| GET | `/api/categorias` | No | Listar categorías |
+| GET | `/api/productos` | No | Listado paginado |
+| GET | `/api/productos/buscar` | No | Búsqueda |
+| GET | `/api/productos/{id}` | No | Detalle |
+| POST | `/api/productos` | Admin | Crear |
+| PUT | `/api/productos/{id}` | Admin | Actualizar |
+| DELETE | `/api/productos/{id}` | Admin | Eliminar |
+| GET | `/api/carrito` | Cliente | Ver carrito |
+| POST | `/api/carrito/articulos` | Cliente | Agregar ítem |
+| POST | `/api/reservacion` | Cliente | Crear reserva |
+| GET | `/api/admin/usuarios` | Admin | Listar usuarios |
+| PUT | `/api/admin/usuarios/{id}/rol` | Super admin | Cambiar rol |
+| GET | `/api/admin/ventas` | Staff | Ventas |
+| GET | `/api/admin/reportes/*` | Staff | Reportes |
+
+Controladores adicionales: `CarritoController`, `ReservacionController`, `PagosController`, `MetodoPagoController`, `UsuarioController` en `src/ElohimShop.API/Controllers/`.

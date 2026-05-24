@@ -1,3 +1,4 @@
+using ElohimShop.API.Configuration;
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Infrastructure.Pagos;
 using ElohimShop.Application.Auth;
@@ -8,12 +9,14 @@ using ElohimShop.Application.Carrito;
 using ElohimShop.Application.Reservacion;
 using ElohimShop.Application.Pagos;
 using ElohimShop.Application.Admin;
+using ElohimShop.Application.Reportes;
 using ElohimShop.Infrastructure.Auth;
 using ElohimShop.Infrastructure.Products;
 using ElohimShop.Infrastructure.User;
 using ElohimShop.Infrastructure.Catalog;
 using ElohimShop.Infrastructure.Security;
 using ElohimShop.Infrastructure.Admin;
+using ElohimShop.Infrastructure.Reportes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -117,6 +120,8 @@ builder.Services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler>();
 builder.Services.AddScoped<IMetodosPagoUsuarioService, MetodosPagoUsuarioService>();
 builder.Services.AddScoped<IPasswordHashing, PasswordHashingService>();
 builder.Services.AddScoped<IAdminUsuarioService, AdminUsuarioService>();
+builder.Services.AddScoped<IAdminVentasService, AdminVentasService>();
+builder.Services.AddScoped<IReportesService, ReportesService>();
 
 builder.Services.Configure<StripePaymentOptions>(
     builder.Configuration.GetSection(StripePaymentOptions.SectionName));
@@ -197,6 +202,21 @@ using (var scope = app.Services.CreateScope())
         builder.Configuration,
         app.Environment.IsDevelopment(),
         logger);
+
+    try
+    {
+        var seedDemo = SeedDataOptions.IsEnabled(builder.Configuration);
+        if (seedDemo)
+        {
+            logger.LogInformation("SEED_DATA activo: cargando datos de prueba (DemoDataSeeder).");
+        }
+
+        await DemoDataSeeder.SeedAsync(dbContext, seedDemo, logger);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "No se pudieron cargar datos demo.");
+    }
 }
 
 app.Use(async (context, next) =>

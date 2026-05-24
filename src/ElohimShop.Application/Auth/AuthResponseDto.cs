@@ -8,5 +8,6 @@ public sealed record AuthResponseDto(
     string? Rol,
     string? TipoCliente,
     string Token,
-    DateTime ExpiraEn
+    DateTime ExpiraEn,
+    bool EsSuperAdmin = false
 );

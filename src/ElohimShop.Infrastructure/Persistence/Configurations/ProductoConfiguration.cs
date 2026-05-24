@@ -28,14 +28,21 @@ public class ProductoConfiguration : IEntityTypeConfiguration<Producto>
             .HasColumnName("nombre_producto");
 
         builder.Property(p => p.Descripcion)
-            .HasColumnType("text");
+            .HasColumnType("text")
+            .HasColumnName("descripcion");
 
         builder.Property(p => p.Precio)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnName("precio");
 
         builder.Property(p => p.StockActual)
             .IsRequired()
             .HasColumnName("stock_actual");
+
+        builder.Property(p => p.StockMinimo)
+            .IsRequired()
+            .HasDefaultValue(20)
+            .HasColumnName("stock_minimo");
 
         builder.Property(p => p.IdMarca)
             .HasMaxLength(255)

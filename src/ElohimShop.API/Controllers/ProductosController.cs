@@ -64,8 +64,13 @@ public class ProductosController : ControllerBase
 
     private bool EsAdministrador()
     {
+        var tipoUsuario = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
+        if (!string.Equals(tipoUsuario, "administrador", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         var rol = User.FindFirstValue("rol");
-        var tipoUsuario = User.FindFirstValue("tipoUsuario");
-        return tipoUsuario == "administrador" || rol == "admin" || rol == "administrador";
+        return rol is null or "administrador" or "admin";
     }
 }

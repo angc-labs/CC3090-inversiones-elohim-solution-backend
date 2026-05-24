@@ -262,11 +262,11 @@ public class CatalogService : ICatalogService
                 $"Producto Seed {i:000}",
                 50 + (i * 10),
                 10 + (i % 25),
-                $"Producto autogenerado para seed {i:000}.",
-                marca.Id,
-                categoria.Id,
-                DateTime.UtcNow.AddMonths(12 + (i % 6)),
-                imagenPrincipal);
+                descripcion: $"Producto autogenerado para seed {i:000}.",
+                idMarca: marca.Id,
+                categoriaId: categoria.Id,
+                fechaVencimiento: DateTime.UtcNow.AddMonths(12 + (i % 6)),
+                imagenPrincipal: imagenPrincipal);
 
             productosNuevos.Add(producto);
         }

@@ -14,7 +14,8 @@ public class MarcaConfiguration : IEntityTypeConfiguration<Marca>
 
         builder.Property(m => m.Id)
             .IsRequired()
-            .HasMaxLength(255);
+            .HasMaxLength(255)
+            .HasColumnName("id");
 
         builder.Property(m => m.NombreMarca)
             .IsRequired()
@@ -22,7 +23,8 @@ public class MarcaConfiguration : IEntityTypeConfiguration<Marca>
             .HasColumnName("nombre_marca");
 
         builder.Property(m => m.Descripcion)
-            .HasColumnType("text");
+            .HasColumnType("text")
+            .HasColumnName("descripcion");
 
         builder.HasMany(m => m.Productos)
             .WithOne(p => p.Marca)
