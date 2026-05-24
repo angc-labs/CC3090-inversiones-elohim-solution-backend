@@ -38,13 +38,6 @@ public static class DatabaseSchemaBootstrapper
                 logger.LogInformation("Aplicando esquema inicial desde {Path}", schemaPath);
                 await ExecuteSqlFileAsync(connection, schemaPath, cancellationToken);
             }
-
-            var patchPath = ResolveSqlPath("patch/001_stock_minimo.sql");
-            if (patchPath is not null)
-            {
-                logger.LogInformation("Aplicando parche {Path}", patchPath);
-                await ExecuteSqlFileAsync(connection, patchPath, cancellationToken);
-            }
         }
         finally
         {

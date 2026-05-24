@@ -1220,7 +1220,6 @@ Prefijo: `/api/admin/reportes`
 ### Base de datos (Docker)
 
 - Esquema: `db/elohim_db.sql` (init Postgres)
-- Parches: `db/patch/*.sql` (aplicados en `entrypoint.sh` del backend)
 - **No** se usa `dotnet ef database update` en Docker
 - Seed demo: `SEED_DATA=true` en `backend/.env` (alias `SEED_DEMO_DATA`). Ver `backend/.env.example`.
 
