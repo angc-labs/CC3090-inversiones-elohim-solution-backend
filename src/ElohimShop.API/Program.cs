@@ -230,6 +230,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
+app.UseMiddleware<BetterAuthSessionMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
