@@ -1,84 +1,103 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
 using ElohimShop.Application.Admin;
 using ElohimShop.Application.Auth;
-using ElohimShop.Domain.Entities;
+using ElohimShop.Domain.Platform;
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
+using PlatformUser = ElohimShop.Domain.Platform.User;
 
 namespace ElohimShop.Infrastructure.Auth;
 
 public class AuthService : IAuthService
 {
     private const int TokenLifetimeMonths = 1;
-    private readonly ElohimShopDbContext _dbContext;
-    private readonly ITokenRevocationService _tokenRevocationService;
+    private readonly PlatformDbContext _dbContext;
     private readonly IConfiguration _configuration;
+    private readonly ITenantProvider _tenantProvider;
 
     public AuthService(
-        ElohimShopDbContext dbContext,
-        ITokenRevocationService tokenRevocationService,
-        IConfiguration configuration)
+        PlatformDbContext dbContext,
+        IConfiguration configuration,
+        ITenantProvider tenantProvider)
     {
         _dbContext = dbContext;
-        _tokenRevocationService = tokenRevocationService;
         _configuration = configuration;
+        _tenantProvider = tenantProvider;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken)
     {
-        if (request.TipoUsuario == "administrador")
+        if (request.TipoUsuario == "administrador" || request.TipoUsuario == "staff")
         {
-            throw new InvalidOperationException("No tenés permisos para registrar administradores.");
+            throw new InvalidOperationException("No tenés permisos para registrar personal de la tienda.");
         }
 
-        if (request.TipoUsuario == "cliente" && string.IsNullOrWhiteSpace(request.TipoCliente))
+        var tenantId = _tenantProvider.GetTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
         {
-            throw new ArgumentException("El campo tipoCliente es requerido para usuarios de tipo cliente.");
+            throw new InvalidOperationException("Se requiere el tenant (tienda_id) para registrar un cliente.");
         }
 
-        var correo = request.Correo.Trim();
-        var correoExistente = await _dbContext.Usuarios
-            .AnyAsync(u => u.Correo == correo, cancellationToken);
+        var email = request.Correo.Trim().ToLowerInvariant();
+        var correoExistente = await _dbContext.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Email == email && u.TiendaId == tenantId, cancellationToken);
 
         if (correoExistente)
         {
-            throw new InvalidOperationException("El correo ya está registrado.");
+            throw new InvalidOperationException("El correo ya está registrado en esta tienda.");
         }
 
         var hashedPassword = PasswordHashing.Hash(request.Contrasena);
 
-        var usuario = Usuario.CrearCliente(
-            correo,
-            request.Nombre,
-            hashedPassword,
-            request.TipoCliente!,
-            request.Apellido,
-            request.Telefono,
-            request.Direccion);
+        var usuario = new PlatformUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = $"{request.Nombre} {request.Apellido}".Trim(),
+            Email = email,
+            EmailVerified = false,
+            TiendaId = tenantId,
+            TipoUsuario = "cliente",
+            Telefono = request.Telefono,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
 
-        _dbContext.Usuarios.Add(usuario);
+        _dbContext.Users.Add(usuario);
+
+        var account = new Account
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserId = usuario.Id,
+            ProviderId = "credential",
+            AccountId = email,
+            Password = hashedPassword,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _dbContext.Accounts.Add(account);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var token = GenerateJwt(usuario);
+        var session = await CreateSessionAsync(usuario.Id, cancellationToken);
 
         var esSuperAdmin = SuperAdminHelper.IsSuperAdminEmail(
-            usuario.Correo,
+            usuario.Email,
             _configuration["SuperAdmin:Email"]);
 
         return new AuthResponseDto(
             usuario.Id,
-            usuario.Correo,
-            usuario.Nombre,
-            usuario.TipoUsuario,
+            usuario.Email,
+            usuario.Name,
+            "cliente",
             null,
-            usuario.ClientePerfil?.TipoCliente,
-            token.Token,
-            token.ExpiresAt,
+            request.TipoCliente ?? "particular",
+            session.Token,
+            session.ExpiresAt,
             esSuperAdmin);
     }
 
@@ -86,84 +105,135 @@ public class AuthService : IAuthService
     {
         if (string.IsNullOrWhiteSpace(request.Rol))
         {
-            throw new ArgumentException("El campo rol es requerido para administradores.");
+            throw new ArgumentException("El campo rol es requerido para personal de la tienda.");
         }
 
-        var correo = request.Correo.Trim();
-        var correoExistente = await _dbContext.Usuarios
-            .AnyAsync(u => u.Correo == correo, cancellationToken);
+        var tenantId = _tenantProvider.GetTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            throw new InvalidOperationException("Se requiere el tenant (tienda_id) para registrar personal.");
+        }
+
+        var email = request.Correo.Trim().ToLowerInvariant();
+        var correoExistente = await _dbContext.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Email == email && u.TiendaId == tenantId, cancellationToken);
 
         if (correoExistente)
         {
-            throw new InvalidOperationException("El correo ya está registrado.");
+            throw new InvalidOperationException("El correo ya está registrado en esta tienda.");
         }
 
         var hashedPassword = PasswordHashing.Hash(request.Contrasena);
 
-        var usuario = Usuario.CrearAdministrador(
-            correo,
-            request.Nombre,
-            hashedPassword,
-            request.Rol,
-            request.Apellido,
-            request.Telefono);
+        var usuario = new PlatformUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = $"{request.Nombre} {request.Apellido}".Trim(),
+            Email = email,
+            EmailVerified = false,
+            TiendaId = tenantId,
+            TipoUsuario = "staff",
+            RolStaff = request.Rol.Trim().ToLowerInvariant(),
+            Telefono = request.Telefono,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
 
-        _dbContext.Usuarios.Add(usuario);
+        _dbContext.Users.Add(usuario);
+
+        var account = new Account
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserId = usuario.Id,
+            ProviderId = "credential",
+            AccountId = email,
+            Password = hashedPassword,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _dbContext.Accounts.Add(account);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var token = GenerateJwt(usuario);
+        var session = await CreateSessionAsync(usuario.Id, cancellationToken);
 
-        var esSuperAdminAdmin = SuperAdminHelper.IsSuperAdminEmail(
-            usuario.Correo,
+        var esSuperAdmin = SuperAdminHelper.IsSuperAdminEmail(
+            usuario.Email,
             _configuration["SuperAdmin:Email"]);
 
         return new AuthResponseDto(
             usuario.Id,
-            usuario.Correo,
-            usuario.Nombre,
-            usuario.TipoUsuario,
-            usuario.AdministradorPerfil?.Rol,
+            usuario.Email,
+            usuario.Name,
+            "administrador",
+            usuario.RolStaff,
             null,
-            token.Token,
-            token.ExpiresAt,
-            esSuperAdminAdmin);
+            session.Token,
+            session.ExpiresAt,
+            esSuperAdmin);
     }
 
     public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken)
     {
-        var correo = request.Correo.Trim();
+        var email = request.Correo.Trim().ToLowerInvariant();
 
-        var usuario = await _dbContext.Usuarios
-            .Include(u => u.ClientePerfil)
-            .Include(u => u.AdministradorPerfil)
-            .FirstOrDefaultAsync(u => u.Correo == correo, cancellationToken);
-
-        if (usuario is null || !usuario.Estado || !PasswordHashing.Verify(request.Contrasena, usuario.Contrasena))
+        // Query across all stores/tenants if tenant is not specified, or scope to current tenant
+        var query = _dbContext.Users.IgnoreQueryFilters();
+        
+        var tenantId = _tenantProvider.GetTenantId();
+        if (!string.IsNullOrWhiteSpace(tenantId))
         {
-            throw new UnauthorizedAccessException("Credenciales inválidas o cuenta inactiva.");
+            query = query.Where(u => u.TiendaId == tenantId);
         }
 
-        var token = GenerateJwt(usuario);
+        var usuario = await query.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+
+        if (usuario is null)
+        {
+            throw new UnauthorizedAccessException("Credenciales inválidas.");
+        }
+
+        var account = await _dbContext.Accounts
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(a => a.UserId == usuario.Id && a.ProviderId == "credential", cancellationToken);
+
+        if (account is null || string.IsNullOrWhiteSpace(account.Password) || !PasswordHashing.Verify(request.Contrasena, account.Password))
+        {
+            throw new UnauthorizedAccessException("Credenciales inválidas.");
+        }
+
+        var session = await CreateSessionAsync(usuario.Id, cancellationToken);
 
         var esSuperAdmin = SuperAdminHelper.IsSuperAdminEmail(
-            usuario.Correo,
+            usuario.Email,
             _configuration["SuperAdmin:Email"]);
+
+        var mappedTipoUsuario = usuario.TipoUsuario == "staff" ? "administrador" : "cliente";
 
         return new AuthResponseDto(
             usuario.Id,
-            usuario.Correo,
-            usuario.Nombre,
-            usuario.TipoUsuario,
-            usuario.AdministradorPerfil?.Rol,
-            usuario.ClientePerfil?.TipoCliente,
-            token.Token,
-            token.ExpiresAt,
+            usuario.Email,
+            usuario.Name,
+            mappedTipoUsuario,
+            usuario.RolStaff,
+            usuario.TipoUsuario == "cliente" ? "particular" : null,
+            session.Token,
+            session.ExpiresAt,
             esSuperAdmin);
     }
 
-    public Task LogoutAsync(string jti, string usuarioId, DateTime expiresAt, CancellationToken cancellationToken)
+    public async Task LogoutAsync(string token, string usuarioId, DateTime expiresAt, CancellationToken cancellationToken)
     {
-        return _tokenRevocationService.RevokeTokenAsync(jti, usuarioId, expiresAt, cancellationToken);
+        var session = await _dbContext.Sessions
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.Token == token, cancellationToken);
+
+        if (session != null)
+        {
+            _dbContext.Sessions.Remove(session);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     public Task ForgotPasswordAsync(ForgotPasswordRequestDto request, CancellationToken cancellationToken)
@@ -171,64 +241,21 @@ public class AuthService : IAuthService
         return Task.CompletedTask;
     }
 
-    private (string Token, DateTime ExpiresAt) GenerateJwt(Usuario usuario)
+    private async Task<Session> CreateSessionAsync(string userId, CancellationToken cancellationToken)
     {
-        var jwtSection = _configuration.GetSection("Jwt");
-        var key = _configuration["JWT_KEY"]
-            ?? jwtSection["Key"]
-            ?? throw new InvalidOperationException("JWT key is required. Configure JWT_KEY or Jwt:Key.");
-        var issuer = _configuration["JWT_ISSUER"]
-            ?? jwtSection["Issuer"]
-            ?? throw new InvalidOperationException("Jwt:Issuer is required.");
-        var audience = _configuration["JWT_AUDIENCE"]
-            ?? jwtSection["Audience"]
-            ?? throw new InvalidOperationException("Jwt:Audience is required.");
-
-        var expiresAt = DateTime.UtcNow.AddMonths(TokenLifetimeMonths);
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-        var jti = Guid.NewGuid().ToString();
-
-        var claims = new List<Claim>
+        var sessionToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+        var session = new Session
         {
-            new(JwtRegisteredClaimNames.Sub, usuario.Id),
-            new(JwtRegisteredClaimNames.Jti, jti),
-            new(JwtRegisteredClaimNames.Email, usuario.Correo),
-            new(ClaimTypes.Name, usuario.Nombre),
-            new(ClaimTypes.NameIdentifier, usuario.Id),
-            new("tipo_usuario", usuario.TipoUsuario),
-            new("tipoUsuario", usuario.TipoUsuario)
+            Id = Guid.NewGuid().ToString(),
+            Token = sessionToken,
+            UserId = userId,
+            ExpiresAt = DateTime.UtcNow.AddMonths(TokenLifetimeMonths),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
-        if (usuario.ClientePerfil != null)
-        {
-            claims.Add(new Claim("tipo_cliente", usuario.ClientePerfil.TipoCliente));
-            claims.Add(new Claim(ClaimTypes.Role, "Cliente"));
-        }
-
-        if (usuario.AdministradorPerfil != null)
-        {
-            claims.Add(new Claim("rol", usuario.AdministradorPerfil.Rol));
-            claims.Add(new Claim(ClaimTypes.Role, usuario.AdministradorPerfil.Rol));
-        }
-
-        if (SuperAdminHelper.IsSuperAdminEmail(usuario.Correo, _configuration["SuperAdmin:Email"]))
-        {
-            claims.Add(new Claim("es_super_admin", "true"));
-        }
-
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(claims),
-            Expires = expiresAt,
-            Issuer = issuer,
-            Audience = audience,
-            SigningCredentials = credentials
-        };
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-
-        return (tokenHandler.WriteToken(token), expiresAt);
+        _dbContext.Sessions.Add(session);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return session;
     }
 }

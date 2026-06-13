@@ -13,9 +13,9 @@ namespace ElohimShop.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    private readonly ElohimShopDbContext _dbContext;
+    private readonly PlatformDbContext _dbContext;
 
-    public AuthController(IAuthService authService, ElohimShopDbContext dbContext)
+    public AuthController(IAuthService authService, PlatformDbContext dbContext)
     {
         _authService = authService;
         _dbContext = dbContext;
@@ -35,9 +35,10 @@ public class AuthController : ControllerBase
             if (request.TipoUsuario == "administrador")
             {
                 var callerRole = User.FindFirstValue("rol");
-                var existeAdministrador = await _dbContext.Usuarios
+                var existeAdministrador = await _dbContext.Users
+                    .IgnoreQueryFilters()
                     .AsNoTracking()
-                    .AnyAsync(u => u.TipoUsuario == "administrador", cancellationToken);
+                    .AnyAsync(u => u.TipoUsuario == "staff" && u.RolStaff == "administrador", cancellationToken);
                 if (callerRole != "administrador" && existeAdministrador)
                 {
                     return StatusCode(403, new { error = "No tenés permisos para registrar administradores." });
