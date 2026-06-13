@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace ElohimShop.Infrastructure.Security;
 
-internal static class PasswordHashing
+public static class PasswordHashing
 {
     private const int Iterations = 100_000;
     private const int SaltSize = 16;
