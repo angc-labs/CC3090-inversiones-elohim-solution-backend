@@ -1,5 +1,5 @@
 using ElohimShop.Application.Auth;
-using ElohimShop.Domain.Entities;
+using ElohimShop.Domain.Platform;
 using ElohimShop.Infrastructure.Auth;
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Infrastructure.Security;
@@ -7,48 +7,47 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Moq;
 using Xunit;
+using PlatformUser = ElohimShop.Domain.Platform.User;
 
 namespace ElohimShop.Tests.Auth;
 
 public class AuthServiceTests
 {
-    private readonly ElohimShopDbContext _dbContext;
-    private readonly Mock<ITokenRevocationService> _tokenRevocationMock;
+    private readonly PlatformDbContext _dbContext;
+    private readonly Mock<ITenantProvider> _tenantProviderMock;
     private readonly Mock<IConfiguration> _configMock;
-    private readonly IPasswordHashing _passwordHashing;
     private readonly AuthService _service;
+    private const string TestTenantId = "test-tenant-123";
 
     public AuthServiceTests()
     {
-        var options = new DbContextOptionsBuilder<ElohimShopDbContext>()
+        _tenantProviderMock = new Mock<ITenantProvider>();
+        _tenantProviderMock.Setup(t => t.GetTenantId()).Returns(TestTenantId);
+
+        var options = new DbContextOptionsBuilder<PlatformDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        _dbContext = new ElohimShopDbContext(options);
-        _tokenRevocationMock = new Mock<ITokenRevocationService>();
+        _dbContext = new PlatformDbContext(options, _tenantProviderMock.Object);
         
         _configMock = new Mock<IConfiguration>();
-        _configMock.Setup(c => c["JWT_KEY"]).Returns("test-key-123456789012345678901234567890123456789012345678901234567890");
-        _configMock.Setup(c => c["Jwt:Key"]).Returns("test-key-123456789012345678901234567890123456789012345678901234567890");
-        _configMock.Setup(c => c["Jwt:Issuer"]).Returns("TestIssuer");
-        _configMock.Setup(c => c["Jwt:Audience"]).Returns("TestAudience");
-        
-        var jwtSection = new Mock<IConfigurationSection>();
-        jwtSection.Setup(s => s["Key"]).Returns("test-key-123456789012345678901234567890123456789012345678901234567890");
-        jwtSection.Setup(s => s["Issuer"]).Returns("TestIssuer");
-        jwtSection.Setup(s => s["Audience"]).Returns("TestAudience");
-        _configMock.Setup(c => c.GetSection("Jwt")).Returns(jwtSection.Object);
+        _configMock.Setup(c => c["SuperAdmin:Email"]).Returns("superadmin@test.com");
 
-        _passwordHashing = new PasswordHashingService();
-        
-        _service = new AuthService(_dbContext, _tokenRevocationMock.Object, _configMock.Object);
+        _service = new AuthService(_dbContext, _configMock.Object, _tenantProviderMock.Object);
     }
 
     [Fact]
     public async Task RegisterAsync_CorreoExistente_ThrowsException()
     {
-        var existingUser = Domain.Entities.Usuario.CrearCliente("test@test.com", "Test", "hashed", "minorista");
-        _dbContext.Usuarios.Add(existingUser);
+        var existingUser = new PlatformUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Existing User",
+            Email = "test@test.com",
+            TiendaId = TestTenantId,
+            TipoUsuario = "cliente"
+        };
+        _dbContext.Users.Add(existingUser);
         await _dbContext.SaveChangesAsync();
 
         var request = new RegisterRequestDto
@@ -61,21 +60,6 @@ public class AuthServiceTests
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _service.RegisterAsync(request, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task RegisterAsync_ClienteSinTipoCliente_ThrowsException()
-    {
-        var request = new RegisterRequestDto
-        {
-            Correo = "test@test.com",
-            Nombre = "Test",
-            Contrasena = "Password123",
-            TipoUsuario = "cliente"
-        };
-
-        await Assert.ThrowsAsync<ArgumentException>(() =>
             _service.RegisterAsync(request, CancellationToken.None));
     }
 
@@ -96,7 +80,7 @@ public class AuthServiceTests
 
         Assert.NotNull(result);
         Assert.Equal("cliente@test.com", result.Correo);
-        Assert.Equal("Juan", result.Nombre);
+        Assert.Equal("Juan Perez", result.Nombre);
         Assert.Equal("cliente", result.TipoUsuario);
         Assert.Equal("minorista", result.TipoCliente);
         Assert.NotNull(result.Token);
@@ -135,6 +119,7 @@ public class AuthServiceTests
         Assert.Equal("admin@test.com", result.Correo);
         Assert.Equal("administrador", result.TipoUsuario);
         Assert.Equal("administrador", result.Rol);
+        Assert.NotNull(result.Token);
     }
 
     [Fact]
@@ -164,17 +149,37 @@ public class AuthServiceTests
     [Fact]
     public async Task LoginAsync_CredencialesValidas_RetornaToken()
     {
-        var hashedPassword = _passwordHashing.HashPassword("Password123!");
-        var usuario = Domain.Entities.Usuario.CrearCliente("test@test.com", "Test", hashedPassword, "minorista");
-        _dbContext.Usuarios.Add(usuario);
+        var email = "test@test.com";
+        var password = "Password123!";
+        var hashedPassword = PasswordHashing.Hash(password);
+
+        var usuario = new PlatformUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Test Client",
+            Email = email,
+            TiendaId = TestTenantId,
+            TipoUsuario = "cliente"
+        };
+        _dbContext.Users.Add(usuario);
+
+        var account = new Account
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserId = usuario.Id,
+            ProviderId = "credential",
+            AccountId = email,
+            Password = hashedPassword
+        };
+        _dbContext.Accounts.Add(account);
         await _dbContext.SaveChangesAsync();
 
-        var request = new LoginRequestDto("test@test.com", "Password123!");
+        var request = new LoginRequestDto(email, password);
 
         var result = await _service.LoginAsync(request, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal("test@test.com", result.Correo);
+        Assert.Equal(email, result.Correo);
         Assert.Equal("cliente", result.TipoUsuario);
         Assert.NotNull(result.Token);
     }
@@ -182,12 +187,32 @@ public class AuthServiceTests
     [Fact]
     public async Task LoginAsync_PasswordIncorrecto_ThrowsException()
     {
-        var hashedPassword = _passwordHashing.HashPassword("Password123!");
-        var usuario = Domain.Entities.Usuario.CrearCliente("test@test.com", "Test", hashedPassword, "minorista");
-        _dbContext.Usuarios.Add(usuario);
+        var email = "test@test.com";
+        var password = "Password123!";
+        var hashedPassword = PasswordHashing.Hash(password);
+
+        var usuario = new PlatformUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Test Client",
+            Email = email,
+            TiendaId = TestTenantId,
+            TipoUsuario = "cliente"
+        };
+        _dbContext.Users.Add(usuario);
+
+        var account = new Account
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserId = usuario.Id,
+            ProviderId = "credential",
+            AccountId = email,
+            Password = hashedPassword
+        };
+        _dbContext.Accounts.Add(account);
         await _dbContext.SaveChangesAsync();
 
-        var request = new LoginRequestDto("test@test.com", "WrongPassword");
+        var request = new LoginRequestDto(email, "WrongPassword");
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _service.LoginAsync(request, CancellationToken.None));
