@@ -1,263 +1,56 @@
-# Esmira Shop — Documentación de la API REST
+# DM Hub - API REST
 
 **Base URL (Docker):** `http://localhost:5000`  
 **Swagger (Development):** `http://localhost:5000/swagger`
 
-> **Autenticación:** Bearer Token (JWT) en el header `Authorization: Bearer <token>`  
-> **Formato:** JSON en todos los requests y responses  
-> **Moneda:** montos en **quetzales (GTQ)** — valores numéricos sin símbolo; el frontend formatea como `Q 1,234.56`.
+## Contrato actual
 
-**Claims JWT relevantes:** `tipo_usuario` (`cliente` | `administrador`), `rol` (`cajero` | `administrador` para staff), `es_super_admin` (`true` solo para el correo configurado en `SUPER_ADMIN_EMAIL`).
+- Los endpoints nuevos viven bajo `/api/v1/...`.
+- Las rutas viejas siguen existiendo para compatibilidad, pero la documentación nueva debe usar la superficie `v1`.
+- Los endpoints de tenant necesitan `X-Tenant-ID` cuando trabajan sobre datos de tienda.
+- Las rutas protegidas siguen usando `Authorization: Bearer <token>`.
 
-### Credenciales demo (`SEED_DATA=true` en `backend/.env`)
+## Endpoints v1 principales
 
-| Usuario | Contraseña |
-|---------|------------|
-| `superadmin@elohim.gt` | `SuperAdmin123!` (o `SUPER_ADMIN_PASSWORD`) |
-| `cliente.demo@elohim.gt` | `Demo123!` |
-| `carlos.demo@elohim.gt` | `Demo123!` (cajero) |
+| Método | Ruta | Acceso | Uso |
+|---|---|---|---|
+| `POST` | `/api/v1/tiendas` | Público | Crear tienda |
+| `GET` | `/api/v1/tiendas/valida-slug/{slug}` | Público | Validar slug |
+| `PUT` | `/api/v1/tiendas/configuracion-visual` | Tenant | Guardar JSON visual |
+| `POST` | `/api/v1/tiendas/integraciones` | Tenant | Guardar credenciales |
+| `GET` | `/api/v1/media/cloudinary-signature` | Tenant | Firmar subida a Cloudinary |
+| `DELETE` | `/api/v1/media` | Tenant | Eliminar asset por `publicId` |
+| `GET` | `/api/v1/productos` | Tenant | Listar catálogo |
+| `GET` | `/api/v1/productos/{id}` | Tenant | Ver producto |
+| `POST` | `/api/v1/productos` | Tenant | Crear producto |
+| `PUT` | `/api/v1/productos/{id}` | Tenant | Actualizar producto |
+| `DELETE` | `/api/v1/productos/{id}` | Tenant | Eliminar producto |
+| `GET` | `/api/v1/inventarios/sucursal/{sucursalId}` | Tenant | Ver inventario por sucursal |
+| `PUT` | `/api/v1/inventarios/ajuste` | Tenant | Ajustar stock |
+| `GET` | `/api/v1/carrito` | Auth + Tenant | Ver carrito |
+| `POST` | `/api/v1/carrito/articulos` | Auth + Tenant | Agregar al carrito |
+| `PUT` | `/api/v1/carrito/articulos/{id}` | Auth + Tenant | Actualizar cantidad |
+| `DELETE` | `/api/v1/carrito/articulos/{id}` | Auth + Tenant | Quitar artículo |
+| `POST` | `/api/v1/checkout/crear-intento` | Auth + Tenant | Generar intento de pago |
+| `POST` | `/api/v1/reservaciones` | Auth + Tenant | Crear reservación |
+| `GET` | `/api/v1/reservaciones/mis-compras` | Auth + Tenant | Historial del cliente |
+| `GET` | `/api/v1/reservaciones/control-staff` | Staff + Tenant | Panel operativo |
+| `PATCH` | `/api/v1/reservaciones/{id}/estado` | Staff + Tenant | Cambiar estado |
+| `POST` | `/api/v1/reportes/ejecutar-raw` | Staff + Tenant | Ejecutar SELECT seguro |
+| `POST` | `/api/v1/reportes/guardar` | Staff + Tenant | Guardar reporte |
+| `GET` | `/api/v1/reportes` | Staff + Tenant | Listar reportes |
+| `GET` | `/api/v1/reportes/{id}/correr` | Staff + Tenant | Correr reporte guardado |
 
-## Índice
+## Reglas de payload
 
-1. [Autenticación](#1-autenticación)
-2. [Perfil de usuario](#2-perfil-de-usuario)
-3. [Catálogo](#3-catálogo)
-4. [Carrito](#4-carrito)
-5. [Reservaciones](#5-reservaciones)
-6. [Pagos (Stripe)](#6-pagos-stripe)
-7. [Admin — usuarios](#7-admin--usuarios)
-8. [Admin — ventas](#8-admin--ventas)
-9. [Admin — reportes](#9-admin--reportes)
-10. [Códigos de error comunes](#códigos-de-error-comunes)
-11. [Operación y herramientas](#operación-y-herramientas)
-12. [Referencia rápida](#referencia-rápida)
+- Moneda: GTQ.
+- Fechas: ISO-8601.
+- Reportes SQL: solo `SELECT` o `WITH`; se bloquean verbos mutantes.
+- La API nueva responde con DTOs simples; el frontend debe leer `ConfiguracionVisual` como JSON serializado.
 
----
+## Nota de compatibilidad
 
-## 1. Autenticación
-
-### POST `/api/auth/register`
-
-Registra un nuevo usuario (cliente o administrador) y devuelve un JWT.
-
->  El registro de administradores requiere un JWT con rol `administrador` en el header. El registro de clientes es público.
-
-**Request body — cliente:**
-```json
-{
-  "correo": "string (requerido)",
-  "nombre": "string (requerido)",
-  "contrasena": "string (requerido)",
-  "tipoUsuario": "cliente",
-  "tipoCliente": "mayorista | minorista | particular (requerido para clientes)",
-  "apellido": "string (opcional)",
-  "telefono": "string (opcional)",
-  "direccion": "string (opcional)"
-}
-```
-
-**Request body — administrador:**
-```json
-{
-  "correo": "string (requerido)",
-  "nombre": "string (requerido)",
-  "contrasena": "string (requerido)",
-  "tipoUsuario": "administrador",
-  "rol": "cajero | administrador (requerido para administradores)",
-  "apellido": "string (opcional)",
-  "telefono": "string (opcional)"
-}
-```
-
-**Response `201 Created`:**
-```json
-{
-  "usuarioId": "string",
-  "correo": "string",
-  "nombre": "string",
-  "tipoUsuario": "cliente | administrador",
-  "token": "string",
-  "expiraEn": "2026-05-15T00:00:00Z"
-}
-```
-
-**Response `400 Bad Request`:**
-```json
-{
-  "error": "Datos inválidos.",
-  "detalles": ["El campo tipoCliente es requerido para usuarios de tipo cliente."]
-}
-```
-
-**Response `403 Forbidden`:**
-```json
-{
-  "error": "No tenés permisos para registrar administradores."
-}
-```
-
-**Response `409 Conflict`:**
-```json
-{
-  "error": "El correo ya está registrado."
-}
-```
-
----
-
-### POST `/api/auth/login`
-
-Inicia sesión con cualquier tipo de usuario y devuelve un JWT.
-
-**Request body:**
-```json
-{
-  "correo": "string (requerido)",
-  "contrasena": "string (requerido)"
-}
-```
-
-**Response `200 OK`:**
-```json
-{
-  "usuarioId": "string",
-  "correo": "string",
-  "nombre": "string",
-  "tipoUsuario": "cliente | administrador",
-  "rol": "cajero | administrador | null",
-  "tipoCliente": "mayorista | minorista | particular | null",
-  "token": "string",
-  "expiraEn": "2026-05-15T00:00:00Z",
-  "esSuperAdmin": false
-}
-```
-
->  `rol` solo viene poblado si `tipoUsuario` es `administrador`. `tipoCliente` solo viene poblado si `tipoUsuario` es `cliente`. `esSuperAdmin` es `true` para el super administrador (`SUPER_ADMIN_EMAIL`).
-
-**Response `401 Unauthorized`:**
-```json
-{
-  "error": "Credenciales inválidas o cuenta inactiva."
-}
-```
-
----
-
-### POST `/api/auth/logout`
-
-Revoca el JWT actual del usuario autenticado.
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Response `204 No Content`**
-
-**Response `401 Unauthorized`:**
-```json
-{
-  "error": "Token inválido, expirado o ya revocado."
-}
-```
-
----
-
-### POST `/api/auth/forgot-password`
-
-Envía un correo con enlace de recuperación de contraseña.
-
-**Request body:**
-```json
-{
-  "correo": "string (requerido)"
-}
-```
-
-**Response `200 OK`:**
-```json
-{
-  "mensaje": "Si el correo existe, recibirás un enlace de recuperación."
-}
-```
-
->  La respuesta es genérica para no revelar si el correo está registrado.
-
----
-
-## 2. Perfil de usuario
-
-### GET `/api/usuario/me`
-
-Obtiene el perfil del usuario autenticado. La respuesta varía según el tipo de usuario.
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Response `200 OK` — cliente:**
-```json
-{
-  "usuarioId": "string",
-  "nombre": "string",
-  "apellido": "string",
-  "correo": "string",
-  "telefono": "string",
-  "tipoUsuario": "cliente",
-  "tipoCliente": "mayorista | minorista | particular",
-  "direccion": "string",
-  "fechaRegistro": "2026-01-01T00:00:00Z"
-}
-```
-
-**Response `200 OK` — administrador:**
-```json
-{
-  "usuarioId": "string",
-  "nombre": "string",
-  "apellido": "string",
-  "correo": "string",
-  "telefono": "string",
-  "tipoUsuario": "administrador",
-  "rol": "cajero | administrador",
-  "fechaCreacion": "2026-01-01T00:00:00Z"
-}
-```
-
----
-
-### PUT `/api/usuario/me`
-
-Actualiza la información del perfil del usuario autenticado.
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Request body** (todos los campos son opcionales):
-```json
-{
-  "nombre": "string",
-  "apellido": "string",
-  "correo": "string",
-  "contrasena": "string",
-  "telefono": "string",
-  "direccion": "string (solo clientes)"
-}
-```
-
-**Response `200 OK`:**
-```json
-{
-  "usuarioId": "string",
-  "nombre": "string",
-  "apellido": "string",
-  "correo": "string",
-  "telefono": "string"
-}
-```
+Las rutas antiguas siguen presentes en el backend mientras se termina la migración del frontend. La documentación y el trabajo nuevo deben apuntar al prefijo `/api/v1`.
 
 **Response `409 Conflict`:**
 ```json

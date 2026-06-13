@@ -1,123 +1,45 @@
-# Entity Framework Core - Configuración PostgreSQL
+# Entity Framework Core - Plataforma DM Hub
 
-## Resumen de Implementación
+La base de datos ahora se modela directamente con EF Core en la capa de Infrastructure. El arranque del contenedor ya no aplica `db/elohim_db.sql`; en su lugar, `PlatformDbContext` crea el esquema desde el modelo al iniciar la API.
 
-Se han configurado completamente las entidades del dominio con Entity Framework Core para mapear a PostgreSQL.
+## Estado actual
 
-### Estructura Creada
+- `PlatformDbContext` es la fuente de verdad para el nuevo esquema multi-tenant.
+- Los datos operativos llevan `tienda_id` y se filtran con `ITenantProvider`.
+- Las tablas de autenticación estilo Better Auth están mapeadas en PostgreSQL con nombres exactos: `user`, `session`, `account` y `verification`.
+- Docker levanta una base limpia con el volumen `dmhub_postgres_data`.
 
-#### 1. **DbContext** ([ElohimShopDbContext.cs](src/ElohimShop.Infrastructure/Persistence/ElohimShopDbContext.cs))
-- Contexto central que gestiona todas las entidades del dominio
-- Registra 12 DbSets para todas las tablas
-- Aplica configuraciones desde el assembly de Infrastructure (`ApplyConfigurationsFromAssembly`)
+## Convenciones aplicadas
 
-#### 2. **Configuraciones Fluent API** (`src/ElohimShop.Infrastructure/Persistence/Configurations/`)
-Se crearon 12 archivos de configuración, uno por cada entidad:
+- Propiedades C# en PascalCase, columnas en el nombre exacto del contrato SQL.
+- `jsonb` para `ConfiguracionVisual`.
+- `NUMERIC(18,2)` para importes.
+- `timestamp with time zone` para fechas.
+- `HasQueryFilter` para entidades dependientes de tenant.
 
-| Entidad | Archivo | Características |
-|---------|---------|-----------------|
-| **Rol** | `RolConfiguration.cs` | Tablas maestras, relación 1:N con Administrador |
-| **Marca** | `MarcaConfiguration.cs` | Tablas maestras, relación 1:N con Producto |
-| **Categoria** | `CategoriaConfiguration.cs` | Tablas maestras, relación 1:N con Producto |
-| **MetodoPago** | `MetodoPagoConfiguration.cs` | Tablas maestras, relación 1:N con Reservacion |
-| **TipoCliente** | `TipoClienteConfiguration.cs` | Tablas maestras, relación 1:N con Cliente |
-| **Cliente** | `ClienteConfiguration.cs` | Usuario final, índice único en Correo, FK con TipoCliente |
-| **Administrador** | `AdministradorConfiguration.cs` | Personal interno, índice único en Correo, FK con Rol, enum Estado |
-| **Consulta** | `ConsultaConfiguration.cs` | Relación M2M entre Cliente y Administrador, cascada en delete |
-| **Producto** | `ProductoConfiguration.cs` | Catálogo, índice único en CodigoProducto, FK con Marca y Categoria |
-| **Reservacion** | `ReservacionConfiguration.cs` | Transacción, enum EstadoRenovacion, relación 1:1 con Venta |
-| **DetalleReservacion** | `DetalleReservacionConfiguration.cs` | Línea de detalle, columna computada Subtotal, cascada en delete |
-| **Venta** | `VentaConfiguration.cs` | Transacción finalizada, enum EstadoVenta, índice único en ReservacionId |
+## Configuración de conexión
 
-#### 3. **Enums** (`src/ElohimShop.Domain/Enums/`)
-- **EstadoAdministrador**: Activo, Inactivo, Bloqueado
-- **EstadoRenovacion**: Pendiente, Renovada, Vencida, Cancelada
-- **EstadoVenta**: Pendiente, Pagada, Anulada, Completada
-
-Los enums se almacenan como strings en PostgreSQL mediante conversión en Fluent API.
-
-### Convenciones Aplicadas
-
-#### Naming de Columnas
-- Se respetan los nombres del esquema PostgreSQL original
-- Uso explícito de `HasColumnName()` para columnas con snake_case
-- Propiedades de C# en PascalCase, columnas en snake_case en BD
-
-#### Tipos de Datos
-- Strings: `VARCHAR(n)` con máximas longitudes configuradas
-- Numéricos: `INTEGER` para precios con unidad mínima, `NUMERIC` para derivados
-- Fechas: `TIMESTAMP` para todas las fechas (UTC)
-- Booleanos: `BOOLEAN`
-- Campos de texto largo: `TEXT`
-- Enums: `VARCHAR(n)` con conversión automática
-
-#### Restricciones de Clave Foránea
-```
-DeleteBehavior.Cascade   → Si se elimina el padre, se eliminan los hijos
-DeleteBehavior.SetNull   → Si se elimina el padre, la FK del hijo se vuelve NULL
-```
-
-Aplicadas según reglas de negocio:
-- Consultas y DetalleReservacion: CASCADE (lógicamente dependientes)
-- Demás relaciones opcionales: SET_NULL (independencia de datos)
-
-#### Índices
-- Únicos: `Correo` (Cliente, Administrador), `CodigoProducto` (Producto), `CodigoReservacion` (Reservacion), `ReservacionId` (Venta)
-- Normales: Todas las claves foráneas
-
-### Columna Computada
-```sql
-DetalleReservacion.Subtotal = Cantidad * PrecioUnitario (STORED)
-```
-
-### Configuración de Conexión
-
-#### appsettings.json
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=elohim_db;Username=postgres;Password=postgres"
+    "DefaultConnection": "Host=db;Port=5432;Database=dmhub;Username=postgres;Password=postgres"
   }
 }
 ```
 
-#### Program.cs
-```csharp
-builder.Services.AddDbContext<ElohimShopDbContext>(options =>
-    options.UseNpgsql(connectionString));
-```
+## Arranque
 
-### Migración Inicial
+`Program.cs` registra `PlatformDbContext`, `ITenantProvider` y `IPlatformService`, luego invoca `PlatformDatabaseBootstrapper.EnsureCreatedAsync(...)` para inicializar la BD si aún no existe.
 
-Se generó la migración inicial con:
+## Validación
+
 ```bash
-dotnet ef migrations add InitialCreate --project src/ElohimShop.Infrastructure --startup-project src/ElohimShop.API
+cd backend
+dotnet build ElohimShop.slnx
+docker compose up --build
 ```
 
-Archivo generado: `Migrations/20260402143754_InitialCreate.cs`
+## Notas
 
-Para aplicar la migración:
-```bash
-dotnet ef database update --project src/ElohimShop.Infrastructure --startup-project src/ElohimShop.API
-```
-
-### Dependencias Agregadas
-
-- `Microsoft.EntityFrameworkCore` (v10.0.5)
-- `Microsoft.EntityFrameworkCore.Design` (v10.0.5)
-- `Npgsql.EntityFrameworkCore.PostgreSQL` (v10.0.1)
-
-### Validación
-
-✅ Compilación exitosa: `dotnet build ElohimShop.slnx`  
-✅ Migración generada correctamente  
-✅ Todas las relaciones mapeadas  
-✅ Enums configurados para persistencia  
-✅ Índices y restricciones configurados  
-
-### Próximos Pasos
-
-1. Ejecutar migración en base de datos de desarrollo
-2. Crear repositorios en `Infrastructure/Repositories/`
-3. Implementar casos de uso en `Application/`
-4. Exponer endpoints en `API/Controllers/`
+- `db/elohim_db.sql` queda como referencia histórica.
+- Las migraciones existentes del esquema legado no son parte del nuevo flujo de arranque.
