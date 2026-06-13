@@ -10,6 +10,7 @@ using ElohimShop.Application.Reservacion;
 using ElohimShop.Application.Pagos;
 using ElohimShop.Application.Admin;
 using ElohimShop.Application.Reportes;
+using ElohimShop.Application.Platform;
 using ElohimShop.Infrastructure.Auth;
 using ElohimShop.Infrastructure.Products;
 using ElohimShop.Infrastructure.User;
@@ -17,6 +18,7 @@ using ElohimShop.Infrastructure.Catalog;
 using ElohimShop.Infrastructure.Security;
 using ElohimShop.Infrastructure.Admin;
 using ElohimShop.Infrastructure.Reportes;
+using ElohimShop.Infrastructure.Platform;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -77,12 +79,13 @@ builder.Services.AddSwaggerGen(options =>
     });
 
     options.AddSecurityRequirement(_ => new Microsoft.OpenApi.OpenApiSecurityRequirement
-{
     {
-        new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer"),
-        new List<string>()
-    }
-});
+        {
+            new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer"),
+            new List<string>()
+        }
+    });
+
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
@@ -90,6 +93,8 @@ builder.Services.AddSwaggerGen(options =>
         options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
     }
 });
+
+builder.Services.AddHttpContextAccessor();
 
 // CORS Configuration - must be before any middleware
 builder.Services.AddCors(options =>
@@ -122,6 +127,7 @@ builder.Services.AddScoped<IPasswordHashing, PasswordHashingService>();
 builder.Services.AddScoped<IAdminUsuarioService, AdminUsuarioService>();
 builder.Services.AddScoped<IAdminVentasService, AdminVentasService>();
 builder.Services.AddScoped<IReportesService, ReportesService>();
+builder.Services.AddScoped<IPlatformService, PlatformService>();
 
 builder.Services.Configure<StripePaymentOptions>(
     builder.Configuration.GetSection(StripePaymentOptions.SectionName));
@@ -132,6 +138,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<ElohimShopDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+builder.Services.AddDbContext<PlatformDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+builder.Services.AddScoped<ITenantProvider, TenantProvider>();
 
 // JWT Configuration
 var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -193,30 +204,11 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ElohimShopDbContext>();
+    var platformDbContext = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
-        .CreateLogger("SuperAdminSeeder");
+        .CreateLogger("PlatformDbBootstrapper");
 
-    await SuperAdminSeeder.SeedAsync(
-        dbContext,
-        builder.Configuration,
-        app.Environment.IsDevelopment(),
-        logger);
-
-    try
-    {
-        var seedDemo = SeedDataOptions.IsEnabled(builder.Configuration);
-        if (seedDemo)
-        {
-            logger.LogInformation("SEED_DATA activo: cargando datos de prueba (DemoDataSeeder).");
-        }
-
-        await DemoDataSeeder.SeedAsync(dbContext, seedDemo, logger);
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "No se pudieron cargar datos demo.");
-    }
+    await PlatformDatabaseBootstrapper.EnsureCreatedAsync(platformDbContext, logger, app.Lifetime.ApplicationStopping);
 }
 
 app.Use(async (context, next) =>
