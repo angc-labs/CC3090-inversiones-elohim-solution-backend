@@ -3,12 +3,22 @@
 **Base URL (Docker):** `http://localhost:5000`  
 **Swagger (Development):** `http://localhost:5000/swagger`
 
-## Contrato actual
+## Contrato actual y Autenticación
 
-- Los endpoints nuevos viven bajo `/api/v1/...`.
-- Las rutas viejas siguen existiendo para compatibilidad, pero la documentación nueva debe usar la superficie `v1`.
-- Los endpoints de tenant necesitan `X-Tenant-ID` cuando trabajan sobre datos de tienda.
-- Las rutas protegidas siguen usando `Authorization: Bearer <token>`.
+- **Aislamiento Multi-Tenant:** Los endpoints operativos de tienda requieren la cabecera HTTP `X-Tenant-ID` para aislar lógicamente las peticiones.
+- **Resource Server & Better Auth:** El backend funciona como un Resource Server. La autenticación y las sesiones son administradas por Better Auth en el frontend Next.js.
+- **Validación de Sesiones:** El backend valida las solicitudes interceptando el token de sesión propagado de las siguientes formas:
+  - Cabecera: `Authorization: Bearer <sessionToken>`
+  - Cookie: `better-auth.session_token` o `__secure-better-auth.session_token`
+- **Inyección de Contexto:** Al validar el token con las tablas `session` y `user` en la base de datos centralizada, se inyectan las siguientes claims en `HttpContext.User`:
+  - `sub` / `NameIdentifier`: ID único del usuario
+  - `email`: Correo electrónico
+  - `tienda_id`: Tenant (ID de la tienda activa del usuario)
+  - `tipo_usuario`: Rol general (`cliente` o `administrador` para staff)
+  - `rol` / `rol_staff`: Sub-rol específico para personal (`administrador`, `cajero`, `logistica`)
+- **Compatibilidad:** Para compatibilidad con los controladores heredados, el claim `tipo_usuario` se mapea a `"administrador"` para el personal del staff, manteniendo el acceso a las funciones administrativas.
+- **Endpoints Nuevos:** Los endpoints migrados viven bajo `/api/v1/...`.
+
 
 ## Endpoints v1 principales
 
