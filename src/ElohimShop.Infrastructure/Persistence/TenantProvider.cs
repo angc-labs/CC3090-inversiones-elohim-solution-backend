@@ -20,6 +20,11 @@ public class TenantProvider : ITenantProvider
             return string.Empty;
         }
 
+        if (httpContext.Items.TryGetValue("ResolvedTenantId", out var cachedTenantId) && cachedTenantId is string tenantIdStr)
+        {
+            return tenantIdStr;
+        }
+
         if (httpContext.Request.Headers.TryGetValue(TenantHeaderName, out var tenantId) && !string.IsNullOrWhiteSpace(tenantId))
         {
             return tenantId.ToString();

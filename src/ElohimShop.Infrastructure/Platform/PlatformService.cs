@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -6,6 +7,7 @@ using System.Text.RegularExpressions;
 using ElohimShop.Application.Platform;
 using ElohimShop.Domain.Platform;
 using ElohimShop.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace ElohimShop.Infrastructure.Platform;
@@ -16,11 +18,62 @@ public class PlatformService : IPlatformService
 
     private readonly PlatformDbContext _dbContext;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public PlatformService(PlatformDbContext dbContext, ITenantProvider tenantProvider)
+    public PlatformService(PlatformDbContext dbContext, ITenantProvider tenantProvider, IHttpContextAccessor httpContextAccessor)
     {
         _dbContext = dbContext;
         _tenantProvider = tenantProvider;
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    public async Task<IReadOnlyList<TiendaDto>> ListarTiendasAsync(CancellationToken cancellationToken)
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        var email = httpContext?.User?.FindFirst(ClaimTypes.Email)?.Value;
+        var rol = httpContext?.User?.FindFirst("rol")?.Value ?? httpContext?.User?.FindFirst("rol_staff")?.Value;
+        var esSuperAdmin = string.Equals(rol, "superadmin", StringComparison.OrdinalIgnoreCase);
+
+        var query = _dbContext.Tiendas.AsNoTracking();
+
+        if (!esSuperAdmin && !string.IsNullOrWhiteSpace(email))
+        {
+            var userStores = await _dbContext.Users
+                .IgnoreQueryFilters()
+                .Where(u => u.Email == email)
+                .Select(u => u.TiendaId)
+                .Where(tId => tId != null)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            query = query.Where(t => userStores.Contains(t.Id));
+        }
+        else if (string.IsNullOrWhiteSpace(email))
+        {
+            return Array.Empty<TiendaDto>();
+        }
+
+        var tiendas = await query.ToListAsync(cancellationToken);
+
+        var dtos = new List<TiendaDto>();
+        foreach (var tienda in tiendas)
+        {
+            dtos.Add(await MapTiendaAsync(tienda.Id, cancellationToken));
+        }
+        return dtos;
+    }
+
+    public async Task<TiendaDto?> ObtenerTiendaPorIdOSlugAsync(string idOrSlug, CancellationToken cancellationToken)
+    {
+        var normalizedIdOrSlug = idOrSlug.Trim().ToLowerInvariant();
+        var tienda = await _dbContext.Tiendas
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == idOrSlug || t.Slug == normalizedIdOrSlug, cancellationToken);
+
+        if (tienda == null) return null;
+
+        return await MapTiendaAsync(tienda.Id, cancellationToken);
     }
 
     public async Task<TiendaDto> CrearTiendaAsync(CrearTiendaRequest request, CancellationToken cancellationToken)
@@ -40,8 +93,84 @@ public class PlatformService : IPlatformService
 
         _dbContext.Tiendas.Add(tienda);
         _dbContext.CredencialesIntegraciones.Add(new CredencialesIntegracion { TiendaId = tienda.Id });
+
+        var httpContext = _httpContextAccessor.HttpContext;
+        var email = httpContext?.User?.FindFirst(ClaimTypes.Email)?.Value;
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var existingUser = await _dbContext.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+
+            if (existingUser != null)
+            {
+                var newUser = new ElohimShop.Domain.Platform.User
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = existingUser.Name,
+                    Email = existingUser.Email,
+                    EmailVerified = existingUser.EmailVerified,
+                    Image = existingUser.Image,
+                    TiendaId = tienda.Id,
+                    TipoUsuario = "staff",
+                    RolStaff = "administrador",
+                    Telefono = existingUser.Telefono,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    Estado = true
+                };
+                _dbContext.Users.Add(newUser);
+
+                var existingAccount = await _dbContext.Accounts
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(a => a.UserId == existingUser.Id && a.ProviderId == "credential", cancellationToken);
+
+                if (existingAccount != null)
+                {
+                    var newAccount = new Account
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        UserId = newUser.Id,
+                        ProviderId = "credential",
+                        AccountId = existingUser.Email,
+                        Password = existingAccount.Password,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _dbContext.Accounts.Add(newAccount);
+                }
+            }
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        return await MapTiendaAsync(tienda.Id, cancellationToken);
+    }
+
+    public async Task<TiendaDto> ActualizarTiendaAsync(ActualizarTiendaRequest request, CancellationToken cancellationToken)
+    {
+        var tienda = await GetTenantStoreAsync(cancellationToken);
+
+        var normalizedSlug = request.Slug.Trim().ToLowerInvariant();
+
+        // Si el slug cambió, validar que el nuevo slug sea único en todo el sistema
+        if (!string.Equals(tienda.Slug, normalizedSlug, StringComparison.OrdinalIgnoreCase))
+        {
+            var slugExiste = await _dbContext.Tiendas
+                .IgnoreQueryFilters()
+                .AnyAsync(x => x.Slug == normalizedSlug, cancellationToken);
+
+            if (slugExiste)
+            {
+                throw new InvalidOperationException("El slug ya está en uso por otra tienda.");
+            }
+
+            tienda.Slug = normalizedSlug;
+        }
+
+        tienda.Nombre = request.Nombre.Trim();
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return await MapTiendaAsync(tienda.Id, cancellationToken);
     }
 
@@ -70,6 +199,8 @@ public class PlatformService : IPlatformService
         credenciales.CloudinaryCloudName = request.CloudinaryCloudName;
         credenciales.CloudinaryApiKey = request.CloudinaryApiKey;
         credenciales.CloudinaryApiSecret = request.CloudinaryApiSecret;
+        credenciales.SmtpEmail = request.SmtpEmail;
+        credenciales.SmtpPassword = request.SmtpPassword;
 
         if (_dbContext.Entry(credenciales).State == EntityState.Detached)
         {
@@ -124,7 +255,18 @@ public class PlatformService : IPlatformService
                 x.PrecioDetalle,
                 x.ImagenUrl,
                 x.Publicado,
-                x.FechaCreacion))
+                x.StockMinimo,
+                x.FechaCreacion,
+                x.Inventarios.Sum(i => i.Stock),
+                x.Inventarios.Select(i => new InventarioDto(
+                    i.Id,
+                    i.TiendaId,
+                    i.SucursalId,
+                    i.ProductoId,
+                    i.Stock,
+                    x.Nombre,
+                    i.Sucursal != null ? i.Sucursal.Nombre : null
+                )).ToList()))
             .ToListAsync(cancellationToken);
     }
 
@@ -144,15 +286,28 @@ public class PlatformService : IPlatformService
                 x.PrecioDetalle,
                 x.ImagenUrl,
                 x.Publicado,
-                x.FechaCreacion))
+                x.StockMinimo,
+                x.FechaCreacion,
+                x.Inventarios.Sum(i => i.Stock),
+                x.Inventarios.Select(i => new InventarioDto(
+                    i.Id,
+                    i.TiendaId,
+                    i.SucursalId,
+                    i.ProductoId,
+                    i.Stock,
+                    x.Nombre,
+                    i.Sucursal != null ? i.Sucursal.Nombre : null
+                )).ToList()))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<ProductoDto> CrearProductoAsync(CrearProductoRequest request, CancellationToken cancellationToken)
     {
+        var tiendaId = RequireTenantId();
+        var stockActual = request.StockSucursales?.Sum(s => s.Stock) ?? 0;
         var producto = new Producto
         {
-            TiendaId = RequireTenantId(),
+            TiendaId = tiendaId,
             CategoriaId = request.CategoriaId,
             Nombre = request.Nombre.Trim(),
             Descripcion = request.Descripcion,
@@ -160,12 +315,103 @@ public class PlatformService : IPlatformService
             PrecioMayoreo = request.PrecioMayoreo,
             PrecioDetalle = request.PrecioDetalle,
             ImagenUrl = request.ImagenUrl,
-            Publicado = request.Publicado
+            Publicado = request.Publicado,
+            StockActual = stockActual,
+            StockMinimo = request.StockMinimo
         };
 
         _dbContext.Productos.Add(producto);
+
+        if (request.StockSucursales != null)
+        {
+            foreach (var sStock in request.StockSucursales)
+            {
+                _dbContext.Inventarios.Add(new Inventario
+                {
+                    TiendaId = tiendaId,
+                    SucursalId = sStock.SucursalId,
+                    ProductoId = producto.Id,
+                    Stock = sStock.Stock
+                });
+            }
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
         return await ObtenerProductoAsync(producto.Id, cancellationToken) ?? throw new InvalidOperationException("No se pudo crear el producto.");
+    }
+
+    public async Task<IReadOnlyList<ProductoDto>> CrearProductosBulkAsync(IReadOnlyCollection<CrearProductoBulkInput> requests, CancellationToken cancellationToken)
+    {
+        var tiendaId = RequireTenantId();
+        var creadosIds = new List<string>();
+
+        // Obtener la primera sucursal para asociar el stock actual
+        var primeraSucursal = await _dbContext.Sucursales
+            .FirstOrDefaultAsync(s => s.TiendaId == tiendaId, cancellationToken);
+
+        foreach (var req in requests)
+        {
+            var producto = new Producto
+            {
+                TiendaId = tiendaId,
+                CategoriaId = req.CategoriaId,
+                Nombre = req.Nombre.Trim(),
+                Descripcion = req.Descripcion,
+                Sku = req.Sku,
+                PrecioMayoreo = req.PrecioMayoreo,
+                PrecioDetalle = req.PrecioDetalle,
+                ImagenUrl = req.ImagenUrl,
+                Publicado = req.Publicado,
+                StockActual = req.StockActual,
+                StockMinimo = req.StockMinimo
+            };
+
+            _dbContext.Productos.Add(producto);
+            creadosIds.Add(producto.Id);
+
+            if (primeraSucursal != null && req.StockActual > 0)
+            {
+                _dbContext.Inventarios.Add(new Inventario
+                {
+                    TiendaId = tiendaId,
+                    SucursalId = primeraSucursal.Id,
+                    ProductoId = producto.Id,
+                    Stock = req.StockActual
+                });
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Volver a consultar para devolver ProductoDto completo con inventarios y nombres de sucursal
+        return await _dbContext.Productos
+            .AsNoTracking()
+            .Where(x => creadosIds.Contains(x.Id))
+            .OrderBy(x => x.Nombre)
+            .Select(x => new ProductoDto(
+                x.Id,
+                x.TiendaId,
+                x.CategoriaId,
+                x.Nombre,
+                x.Descripcion,
+                x.Sku,
+                x.PrecioMayoreo,
+                x.PrecioDetalle,
+                x.ImagenUrl,
+                x.Publicado,
+                x.StockMinimo,
+                x.FechaCreacion,
+                x.Inventarios.Sum(i => i.Stock),
+                x.Inventarios.Select(i => new InventarioDto(
+                    i.Id,
+                    i.TiendaId,
+                    i.SucursalId,
+                    i.ProductoId,
+                    i.Stock,
+                    x.Nombre,
+                    i.Sucursal != null ? i.Sucursal.Nombre : null
+                )).ToList()))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<ProductoDto?> ActualizarProductoAsync(string id, ActualizarProductoRequest request, CancellationToken cancellationToken)
@@ -184,6 +430,38 @@ public class PlatformService : IPlatformService
         producto.PrecioDetalle = request.PrecioDetalle;
         producto.ImagenUrl = request.ImagenUrl;
         producto.Publicado = request.Publicado;
+        producto.StockMinimo = request.StockMinimo;
+
+        if (request.StockSucursales != null)
+        {
+            var existingInventories = await _dbContext.Inventarios
+                .Where(x => x.ProductoId == id && x.TiendaId == producto.TiendaId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var sStock in request.StockSucursales)
+            {
+                var existing = existingInventories.FirstOrDefault(x => x.SucursalId == sStock.SucursalId);
+                if (existing != null)
+                {
+                    existing.Stock = sStock.Stock;
+                }
+                else
+                {
+                    var newInv = new Inventario
+                    {
+                        TiendaId = producto.TiendaId,
+                        SucursalId = sStock.SucursalId,
+                        ProductoId = id,
+                        Stock = sStock.Stock
+                    };
+                    _dbContext.Inventarios.Add(newInv);
+                    existingInventories.Add(newInv);
+                }
+            }
+
+            producto.StockActual = existingInventories.Sum(x => x.Stock);
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
         return await ObtenerProductoAsync(id, cancellationToken);
     }
@@ -196,7 +474,7 @@ public class PlatformService : IPlatformService
             return false;
         }
 
-        _dbContext.Productos.Remove(producto);
+        producto.Eliminado = true;
         await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
@@ -239,6 +517,25 @@ public class PlatformService : IPlatformService
         else
         {
             inventario.Stock = request.Stock;
+        }
+
+        var producto = await _dbContext.Productos.FirstOrDefaultAsync(x => x.Id == request.ProductoId && x.TiendaId == tenantId, cancellationToken);
+        if (producto != null)
+        {
+            var existingInventories = await _dbContext.Inventarios
+                .Where(x => x.ProductoId == request.ProductoId && x.TiendaId == tenantId)
+                .ToListAsync(cancellationToken);
+
+            var existing = existingInventories.FirstOrDefault(x => x.SucursalId == request.SucursalId);
+            if (existing != null)
+            {
+                existing.Stock = request.Stock;
+            }
+            else
+            {
+                existingInventories.Add(inventario);
+            }
+            producto.StockActual = existingInventories.Sum(x => x.Stock);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -305,7 +602,14 @@ public class PlatformService : IPlatformService
         }
 
         item.Cantidad = request.Cantidad;
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return null;
+        }
         return await MapCarritoAsync(item.Id, cancellationToken);
     }
 
@@ -319,7 +623,15 @@ public class PlatformService : IPlatformService
         }
 
         _dbContext.CarritoElementos.Remove(item);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Si el artículo ya fue eliminado concurrentemente, consideramos la operación como exitosa.
+            return true;
+        }
         return true;
     }
 
@@ -436,12 +748,26 @@ public class PlatformService : IPlatformService
     {
         ValidarSqlSeleccion(request.QuerySql);
 
-        var connection = _dbContext.Database.GetDbConnection();
+        var tenantId = RequireTenantId();
+        var querySql = request.QuerySql;
+        querySql = Regex.Replace(querySql, "@tenant_id", $"'{tenantId}'", RegexOptions.IgnoreCase);
+        querySql = Regex.Replace(querySql, "@tienda_id", $"'{tenantId}'", RegexOptions.IgnoreCase);
+
+        var mainConnectionString = _dbContext.Database.GetConnectionString()
+            ?? throw new InvalidOperationException("No se pudo obtener la cadena de conexión de la base de datos.");
+
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder(mainConnectionString)
+        {
+            Username = "reports_readonly",
+            Password = "ReadOnlyPassword123!"
+        };
+
+        await using var connection = new Npgsql.NpgsqlConnection(builder.ConnectionString);
         await connection.OpenAsync(cancellationToken);
         try
         {
             await using var command = connection.CreateCommand();
-            command.CommandText = request.QuerySql;
+            command.CommandText = querySql;
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
             var rows = new List<Dictionary<string, object?>>();
@@ -566,6 +892,283 @@ public class PlatformService : IPlatformService
             detalles);
     }
 
+    public async Task<IReadOnlyList<SucursalDto>> ListarSucursalesAsync(CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        return await _dbContext.Sucursales
+            .AsNoTracking()
+            .Where(x => x.TiendaId == tenantId)
+            .OrderBy(x => x.Nombre)
+            .Select(x => new SucursalDto(
+                x.Id,
+                x.TiendaId,
+                x.Nombre,
+                x.Direccion,
+                x.Telefono,
+                x.FechaCreacion))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<SucursalDto?> ObtenerSucursalAsync(string id, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        return await _dbContext.Sucursales
+            .AsNoTracking()
+            .Where(x => x.TiendaId == tenantId && x.Id == id)
+            .Select(x => new SucursalDto(
+                x.Id,
+                x.TiendaId,
+                x.Nombre,
+                x.Direccion,
+                x.Telefono,
+                x.FechaCreacion))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<SucursalDto> CrearSucursalAsync(CrearSucursalRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        var sucursal = new Sucursal
+        {
+            Id = Guid.NewGuid().ToString(),
+            TiendaId = tenantId,
+            Nombre = request.Nombre.Trim(),
+            Direccion = request.Direccion,
+            Telefono = request.Telefono,
+            FechaCreacion = DateTime.UtcNow
+        };
+
+        _dbContext.Sucursales.Add(sucursal);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new SucursalDto(
+            sucursal.Id,
+            sucursal.TiendaId,
+            sucursal.Nombre,
+            sucursal.Direccion,
+            sucursal.Telefono,
+            sucursal.FechaCreacion);
+    }
+
+    public async Task<SucursalDto?> ActualizarSucursalAsync(string id, ActualizarSucursalRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        var sucursal = await _dbContext.Sucursales
+            .FirstOrDefaultAsync(x => x.TiendaId == tenantId && x.Id == id, cancellationToken);
+        if (sucursal is null)
+        {
+            return null;
+        }
+
+        sucursal.Nombre = request.Nombre.Trim();
+        sucursal.Direccion = request.Direccion;
+        sucursal.Telefono = request.Telefono;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new SucursalDto(
+            sucursal.Id,
+            sucursal.TiendaId,
+            sucursal.Nombre,
+            sucursal.Direccion,
+            sucursal.Telefono,
+            sucursal.FechaCreacion);
+    }
+
+    public async Task<bool> EliminarSucursalAsync(string id, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        var sucursal = await _dbContext.Sucursales
+            .FirstOrDefaultAsync(x => x.TiendaId == tenantId && x.Id == id, cancellationToken);
+        if (sucursal is null)
+        {
+            return false;
+        }
+
+        _dbContext.Sucursales.Remove(sucursal);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<IReadOnlyList<PlatformUsuarioDto>> ListarUsuariosAsync(CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        return await _dbContext.Users
+            .AsNoTracking()
+            .Where(x => x.TiendaId == tenantId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new PlatformUsuarioDto(
+                x.Id,
+                x.Name,
+                x.Email,
+                x.EmailVerified,
+                x.Image,
+                x.TipoUsuario,
+                x.RolStaff,
+                x.Estado,
+                x.CreatedAt,
+                x.SucursalId,
+                x.Sucursal != null ? x.Sucursal.Nombre : null))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<PlatformUsuarioDto?> ObtenerUsuarioAsync(string id, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        return await _dbContext.Users
+            .AsNoTracking()
+            .Where(x => x.TiendaId == tenantId && x.Id == id)
+            .Select(x => new PlatformUsuarioDto(
+                x.Id,
+                x.Name,
+                x.Email,
+                x.EmailVerified,
+                x.Image,
+                x.TipoUsuario,
+                x.RolStaff,
+                x.Estado,
+                x.CreatedAt,
+                x.SucursalId,
+                x.Sucursal != null ? x.Sucursal.Nombre : null))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<PlatformUsuarioDto> InvitarUsuarioAsync(InvitarPlatformUsuarioRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        var email = request.Email.Trim().ToLowerInvariant();
+
+        var existe = await _dbContext.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(x => x.TiendaId == tenantId && x.Email == email, cancellationToken);
+        if (existe)
+        {
+            throw new InvalidOperationException("El usuario ya existe en esta tienda.");
+        }
+
+        var user = new ElohimShop.Domain.Platform.User
+        {
+            Id = Guid.NewGuid().ToString(),
+            TiendaId = tenantId,
+            Name = request.Name.Trim(),
+            Email = email,
+            EmailVerified = false,
+            TipoUsuario = request.TipoUsuario,
+            RolStaff = request.RolStaff,
+            SucursalId = request.SucursalId,
+            Estado = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _dbContext.Users.Add(user);
+
+        var password = !string.IsNullOrWhiteSpace(request.Contrasena) ? request.Contrasena : "Elohim123*";
+        var hashedPassword = ElohimShop.Infrastructure.Security.PasswordHashing.Hash(password);
+
+        var account = new Account
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserId = user.Id,
+            ProviderId = "credential",
+            AccountId = email,
+            Password = hashedPassword,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _dbContext.Accounts.Add(account);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        string? sucursalNombre = null;
+        if (!string.IsNullOrEmpty(user.SucursalId))
+        {
+            var suc = await _dbContext.Sucursales.AsNoTracking().FirstOrDefaultAsync(s => s.Id == user.SucursalId, cancellationToken);
+            sucursalNombre = suc?.Nombre;
+        }
+
+        return new PlatformUsuarioDto(
+            user.Id,
+            user.Name,
+            user.Email,
+            user.EmailVerified,
+            user.Image,
+            user.TipoUsuario,
+            user.RolStaff,
+            user.Estado,
+            user.CreatedAt,
+            user.SucursalId,
+            sucursalNombre);
+    }
+
+    public async Task<PlatformUsuarioDto?> CambiarRolUsuarioAsync(string id, CambiarRolPlatformUsuarioRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(x => x.TiendaId == tenantId && x.Id == id, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        user.TipoUsuario = request.TipoUsuario;
+        user.RolStaff = request.RolStaff;
+        user.SucursalId = request.SucursalId;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        string? sucursalNombre = null;
+        if (!string.IsNullOrEmpty(user.SucursalId))
+        {
+            var suc = await _dbContext.Sucursales.AsNoTracking().FirstOrDefaultAsync(s => s.Id == user.SucursalId, cancellationToken);
+            sucursalNombre = suc?.Nombre;
+        }
+
+        return new PlatformUsuarioDto(
+            user.Id,
+            user.Name,
+            user.Email,
+            user.EmailVerified,
+            user.Image,
+            user.TipoUsuario,
+            user.RolStaff,
+            user.Estado,
+            user.CreatedAt,
+            user.SucursalId,
+            sucursalNombre);
+    }
+
+    public async Task<PlatformUsuarioDto?> CambiarEstadoUsuarioAsync(string id, bool activo, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        var user = await _dbContext.Users
+            .Include(x => x.Sucursal)
+            .FirstOrDefaultAsync(x => x.TiendaId == tenantId && x.Id == id, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        user.Estado = activo;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new PlatformUsuarioDto(
+            user.Id,
+            user.Name,
+            user.Email,
+            user.EmailVerified,
+            user.Image,
+            user.TipoUsuario,
+            user.RolStaff,
+            user.Estado,
+            user.CreatedAt,
+            user.SucursalId,
+            user.Sucursal?.Nombre);
+    }
+
     private async Task<ReservacionDto?> MapReservacionAsync(string reservacionId, CancellationToken cancellationToken)
     {
         var reservacion = await _dbContext.Reservaciones
@@ -613,6 +1216,39 @@ public class PlatformService : IPlatformService
             : (item.Cantidad >= 10 ? item.Producto.PrecioMayoreo : item.Producto.PrecioDetalle);
     }
 
+    public async Task<bool> EliminarUsuarioAsync(string id, CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        var user = await _dbContext.Users
+            .Include(u => u.Reservaciones)
+            .FirstOrDefaultAsync(x => x.TiendaId == tenantId && x.Id == id, cancellationToken);
+        if (user is null)
+        {
+            return false;
+        }
+
+        if (user.Reservaciones.Any())
+        {
+            user.Estado = false;
+            user.UpdatedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        var accounts = _dbContext.Accounts.IgnoreQueryFilters().Where(x => x.UserId == id);
+        _dbContext.Accounts.RemoveRange(accounts);
+
+        var sessions = _dbContext.Sessions.IgnoreQueryFilters().Where(x => x.UserId == id);
+        _dbContext.Sessions.RemoveRange(sessions);
+
+        var carritos = _dbContext.CarritoElementos.IgnoreQueryFilters().Where(x => x.UsuarioId == id);
+        _dbContext.CarritoElementos.RemoveRange(carritos);
+
+        _dbContext.Users.Remove(user);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     private static void ValidarSqlSeleccion(string querySql)
     {
         var normalized = querySql.Trim();
@@ -626,5 +1262,51 @@ public class PlatformService : IPlatformService
         {
             throw new InvalidOperationException("La consulta contiene comandos no permitidos.");
         }
+
+        // Validar aislamiento de inquilinos (tenant isolation)
+        var tiendaIdMatches = Regex.Matches(normalized, @"\btienda_id\b", RegexOptions.IgnoreCase);
+        if (tiendaIdMatches.Count > 0)
+        {
+            var validPattern = new Regex(@"\btienda_id\s*=\s*@(tenant|tienda)_id\b", RegexOptions.IgnoreCase);
+            var matches = validPattern.Matches(normalized);
+            if (matches.Count != tiendaIdMatches.Count)
+            {
+                throw new InvalidOperationException("Por motivos de seguridad, la columna tienda_id sólo puede ser comparada con el parámetro @tenant_id (ej. tienda_id = @tenant_id).");
+            }
+        }
+        else
+        {
+            // Si no tiene tienda_id, verificamos si está consultando la tabla Tienda.
+            // Si es así, debe tener el filtro id = @tenant_id (o t.id = @tenant_id, etc.)
+            var containsTienda = Regex.IsMatch(normalized, @"\btienda\b", RegexOptions.IgnoreCase);
+            var validIdPattern = new Regex(@"\b(?:""?\w+""?\.)?""?id""?\s*=\s*@(tenant|tienda)_id\b", RegexOptions.IgnoreCase);
+            if (containsTienda && validIdPattern.IsMatch(normalized))
+            {
+                // Permitido porque filtra por el ID de la tienda
+            }
+            else
+            {
+                throw new InvalidOperationException("Toda consulta debe incluir el filtro de tienda_id para aislar sus datos (o id = @tenant_id si consulta la tabla Tienda), por ejemplo: WHERE tienda_id = @tenant_id");
+            }
+        }
+    }
+
+    public async Task<CredencialesIntegracionDtoFull> ObtenerIntegracionesAsync(CancellationToken cancellationToken)
+    {
+        var tenantId = RequireTenantId();
+        var creds = await _dbContext.CredencialesIntegraciones
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TiendaId == tenantId, cancellationToken);
+            
+        return new CredencialesIntegracionDtoFull(
+            tenantId,
+            creds?.StripeSecretKey,
+            creds?.StripePublicKey,
+            creds?.CloudinaryCloudName,
+            creds?.CloudinaryApiKey,
+            creds?.CloudinaryApiSecret,
+            creds?.SmtpEmail,
+            creds?.SmtpPassword
+        );
     }
 }

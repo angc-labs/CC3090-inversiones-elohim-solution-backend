@@ -18,13 +18,16 @@ public sealed record CredencialesIntegracionDto(
     string? CloudinaryApiKey);
 
 public sealed record CrearTiendaRequest(string Nombre, string Slug);
+public sealed record ActualizarTiendaRequest(string Nombre, string Slug);
 public sealed record ActualizarConfiguracionVisualRequest(JsonElement ConfiguracionVisual);
 public sealed record GuardarIntegracionesRequest(
     string? StripeSecretKey,
     string? StripePublicKey,
     string? CloudinaryCloudName,
     string? CloudinaryApiKey,
-    string? CloudinaryApiSecret);
+    string? CloudinaryApiSecret,
+    string? SmtpEmail,
+    string? SmtpPassword);
 
 public sealed record MediaSignatureRequest(
     string PublicId,
@@ -48,7 +51,12 @@ public sealed record ProductoDto(
     decimal PrecioDetalle,
     string? ImagenUrl,
     bool Publicado,
-    DateTime FechaCreacion);
+    int StockMinimo,
+    DateTime FechaCreacion,
+    int StockTotal,
+    IReadOnlyList<InventarioDto> Inventarios);
+
+public sealed record SucursalStockInput(string SucursalId, int Stock);
 
 public sealed record CrearProductoRequest(
     string Nombre,
@@ -58,7 +66,21 @@ public sealed record CrearProductoRequest(
     string? Sku = null,
     string? Descripcion = null,
     string? ImagenUrl = null,
-    bool Publicado = true);
+    bool Publicado = true,
+    int StockMinimo = 0,
+    List<SucursalStockInput>? StockSucursales = null);
+
+public sealed record CrearProductoBulkInput(
+    string Nombre,
+    decimal PrecioMayoreo,
+    decimal PrecioDetalle,
+    string? CategoriaId = null,
+    string? Sku = null,
+    string? Descripcion = null,
+    string? ImagenUrl = null,
+    bool Publicado = true,
+    int StockMinimo = 0,
+    int StockActual = 0);
 
 public sealed record ActualizarProductoRequest(
     string Nombre,
@@ -68,7 +90,9 @@ public sealed record ActualizarProductoRequest(
     string? Sku = null,
     string? Descripcion = null,
     string? ImagenUrl = null,
-    bool Publicado = true);
+    bool Publicado = true,
+    int StockMinimo = 0,
+    List<SucursalStockInput>? StockSucursales = null);
 
 public sealed record InventarioDto(
     string Id,
@@ -155,12 +179,70 @@ public sealed record EjecutarRawReporteRequest(string QuerySql);
 public sealed record SqlExecutionResult(
     IReadOnlyList<Dictionary<string, object?>> Rows);
 
+public sealed record SucursalDto(
+    string Id,
+    string TiendaId,
+    string Nombre,
+    string? Direccion,
+    string? Telefono,
+    DateTime FechaCreacion);
+
+public sealed record CrearSucursalRequest(
+    string Nombre,
+    string? Direccion,
+    string? Telefono);
+
+public sealed record ActualizarSucursalRequest(
+    string Nombre,
+    string? Direccion,
+    string? Telefono);
+
+public sealed record PlatformUsuarioDto(
+    string Id,
+    string Name,
+    string Email,
+    bool EmailVerified,
+    string? Image,
+    string TipoUsuario,
+    string? RolStaff,
+    bool Estado,
+    DateTime CreatedAt,
+    string? SucursalId = null,
+    string? SucursalNombre = null);
+
+public sealed record InvitarPlatformUsuarioRequest(
+    string Email,
+    string Name,
+    string TipoUsuario,
+    string? RolStaff,
+    string? Contrasena,
+    string? SucursalId = null);
+
+public sealed record CambiarRolPlatformUsuarioRequest(
+    string TipoUsuario,
+    string? RolStaff,
+    string? SucursalId = null);
+
+public sealed record CredencialesIntegracionDtoFull(
+    string TiendaId,
+    string? StripeSecretKey,
+    string? StripePublicKey,
+    string? CloudinaryCloudName,
+    string? CloudinaryApiKey,
+    string? CloudinaryApiSecret,
+    string? SmtpEmail,
+    string? SmtpPassword);
+
 public interface IPlatformService
 {
+    Task<IReadOnlyList<TiendaDto>> ListarTiendasAsync(CancellationToken cancellationToken);
+    Task<TiendaDto?> ObtenerTiendaPorIdOSlugAsync(string idOrSlug, CancellationToken cancellationToken);
     Task<TiendaDto> CrearTiendaAsync(CrearTiendaRequest request, CancellationToken cancellationToken);
+    Task<TiendaDto> ActualizarTiendaAsync(ActualizarTiendaRequest request, CancellationToken cancellationToken);
     Task<bool> SlugDisponibleAsync(string slug, CancellationToken cancellationToken);
     Task<TiendaDto> ActualizarConfiguracionVisualAsync(ActualizarConfiguracionVisualRequest request, CancellationToken cancellationToken);
     Task<TiendaDto> GuardarIntegracionesAsync(GuardarIntegracionesRequest request, CancellationToken cancellationToken);
+    Task<CredencialesIntegracionDtoFull> ObtenerIntegracionesAsync(CancellationToken cancellationToken);
 
     Task<MediaSignatureResponse> GenerarFirmaMediaAsync(MediaSignatureRequest request, CancellationToken cancellationToken);
     Task<bool> EliminarMediaAsync(string publicId, CancellationToken cancellationToken);
@@ -168,6 +250,7 @@ public interface IPlatformService
     Task<IReadOnlyList<ProductoDto>> ListarProductosAsync(CancellationToken cancellationToken);
     Task<ProductoDto?> ObtenerProductoAsync(string id, CancellationToken cancellationToken);
     Task<ProductoDto> CrearProductoAsync(CrearProductoRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ProductoDto>> CrearProductosBulkAsync(IReadOnlyCollection<CrearProductoBulkInput> requests, CancellationToken cancellationToken);
     Task<ProductoDto?> ActualizarProductoAsync(string id, ActualizarProductoRequest request, CancellationToken cancellationToken);
     Task<bool> EliminarProductoAsync(string id, CancellationToken cancellationToken);
 
@@ -189,4 +272,17 @@ public interface IPlatformService
     Task<ReportePersonalizadoDto> GuardarReporteAsync(GuardarReporteRequest request, string? creadoPor, CancellationToken cancellationToken);
     Task<IReadOnlyList<ReportePersonalizadoDto>> ListarReportesAsync(CancellationToken cancellationToken);
     Task<SqlExecutionResult> CorrerReporteAsync(string id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SucursalDto>> ListarSucursalesAsync(CancellationToken cancellationToken);
+    Task<SucursalDto?> ObtenerSucursalAsync(string id, CancellationToken cancellationToken);
+    Task<SucursalDto> CrearSucursalAsync(CrearSucursalRequest request, CancellationToken cancellationToken);
+    Task<SucursalDto?> ActualizarSucursalAsync(string id, ActualizarSucursalRequest request, CancellationToken cancellationToken);
+    Task<bool> EliminarSucursalAsync(string id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PlatformUsuarioDto>> ListarUsuariosAsync(CancellationToken cancellationToken);
+    Task<PlatformUsuarioDto?> ObtenerUsuarioAsync(string id, CancellationToken cancellationToken);
+    Task<PlatformUsuarioDto> InvitarUsuarioAsync(InvitarPlatformUsuarioRequest request, CancellationToken cancellationToken);
+    Task<PlatformUsuarioDto?> CambiarRolUsuarioAsync(string id, CambiarRolPlatformUsuarioRequest request, CancellationToken cancellationToken);
+    Task<PlatformUsuarioDto?> CambiarEstadoUsuarioAsync(string id, bool activo, CancellationToken cancellationToken);
+    Task<bool> EliminarUsuarioAsync(string id, CancellationToken cancellationToken);
 }

@@ -46,13 +46,16 @@ public class User : ITenantScopedEntity
     public string? Image { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-    public string TiendaId { get; set; } = string.Empty;
+    public string? TiendaId { get; set; }
     public string TipoUsuario { get; set; } = "cliente";
     public string? RolStaff { get; set; }
     public string? Telefono { get; set; }
     public string? StripeCustomerId { get; set; }
+    public bool Estado { get; set; } = true;
 
     public Tienda? Tienda { get; set; }
+    public string? SucursalId { get; set; }
+    public Sucursal? Sucursal { get; set; }
     public ICollection<Session> Sessions { get; set; } = new List<Session>();
     public ICollection<Account> Accounts { get; set; } = new List<Account>();
     public ICollection<CarritoElemento> CarritoElementos { get; set; } = new List<CarritoElemento>();
@@ -127,7 +130,10 @@ public class Producto : ITenantScopedEntity
     public decimal PrecioDetalle { get; set; }
     public string? ImagenUrl { get; set; }
     public bool Publicado { get; set; } = true;
+    public int StockActual { get; set; }
+    public int StockMinimo { get; set; }
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+    public bool Eliminado { get; set; } = false;
 
     public Tienda? Tienda { get; set; }
     public Categoria? Categoria { get; set; }
@@ -216,6 +222,8 @@ public class CredencialesIntegracion
     public string? CloudinaryCloudName { get; set; }
     public string? CloudinaryApiKey { get; set; }
     public string? CloudinaryApiSecret { get; set; }
+    public string? SmtpEmail { get; set; }
+    public string? SmtpPassword { get; set; }
 
     public Tienda? Tienda { get; set; }
 }

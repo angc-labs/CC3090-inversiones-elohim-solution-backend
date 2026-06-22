@@ -14,6 +14,13 @@ public class TiendasController : V1ControllerBase
         _platformService = platformService;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Listar(CancellationToken cancellationToken)
+    {
+        var tiendas = await _platformService.ListarTiendasAsync(cancellationToken);
+        return Ok(tiendas);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Crear([FromBody] CrearTiendaRequest request, CancellationToken cancellationToken)
     {
@@ -26,6 +33,36 @@ public class TiendasController : V1ControllerBase
     {
         var disponible = await _platformService.SlugDisponibleAsync(slug, cancellationToken);
         return Ok(new { slug, disponible });
+    }
+
+    [HttpGet("{idOrSlug}")]
+    public async Task<IActionResult> ObtenerPorIdOSlug(string idOrSlug, CancellationToken cancellationToken)
+    {
+        var tienda = await _platformService.ObtenerTiendaPorIdOSlugAsync(idOrSlug, cancellationToken);
+        if (tienda == null)
+        {
+            return NotFound(new { error = "Tienda no encontrada." });
+        }
+        return Ok(tienda);
+    }
+
+    [HttpPut("actualizar")]
+    public async Task<IActionResult> Actualizar([FromBody] ActualizarTiendaRequest request, CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null)
+        {
+            return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        }
+
+        try
+        {
+            var tienda = await _platformService.ActualizarTiendaAsync(request, cancellationToken);
+            return Ok(tienda);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpPut("configuracion-visual")]
@@ -50,5 +87,17 @@ public class TiendasController : V1ControllerBase
 
         var tienda = await _platformService.GuardarIntegracionesAsync(request, cancellationToken);
         return Ok(tienda);
+    }
+
+    [HttpGet("integraciones")]
+    public async Task<IActionResult> ObtenerIntegraciones(CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null)
+        {
+            return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        }
+
+        var integraciones = await _platformService.ObtenerIntegracionesAsync(cancellationToken);
+        return Ok(integraciones);
     }
 }
