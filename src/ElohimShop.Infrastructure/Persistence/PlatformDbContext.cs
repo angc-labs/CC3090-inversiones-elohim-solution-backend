@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using ElohimShop.Domain.Platform;
 using Microsoft.EntityFrameworkCore;
 using PlatformUser = ElohimShop.Domain.Platform.User;
@@ -29,6 +34,64 @@ public class PlatformDbContext : DbContext
     public DbSet<DetalleReservacion> DetallesReservacion => Set<DetalleReservacion>();
     public DbSet<ReportePersonalizado> ReportesPersonalizados => Set<ReportePersonalizado>();
     public DbSet<CredencialesIntegracion> CredencialesIntegraciones => Set<CredencialesIntegracion>();
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var entries = ChangeTracker.Entries<Reservacion>()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified)
+            .ToList();
+
+        var reservacionesAPagar = new List<Reservacion>();
+
+        foreach (var entry in entries)
+        {
+            if (entry.State == EntityState.Added && entry.Entity.EstadoPago == "pagado")
+            {
+                reservacionesAPagar.Add(entry.Entity);
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                var origEstadoPago = entry.OriginalValues.GetValue<string>(nameof(Reservacion.EstadoPago));
+                var currentEstadoPago = entry.Entity.EstadoPago;
+                if (origEstadoPago != "pagado" && currentEstadoPago == "pagado")
+                {
+                    reservacionesAPagar.Add(entry.Entity);
+                }
+            }
+        }
+
+        if (reservacionesAPagar.Count > 0)
+        {
+            foreach (var res in reservacionesAPagar)
+            {
+                if (res.Detalles == null || res.Detalles.Count == 0)
+                {
+                    await Entry(res).Collection(r => r.Detalles).LoadAsync(cancellationToken);
+                }
+
+                foreach (var detail in res.Detalles)
+                {
+                    // 1. Decrementar stock por sucursal
+                    var inv = await Inventarios.FirstOrDefaultAsync(i =>
+                        i.SucursalId == res.SucursalId &&
+                        i.ProductoId == detail.ProductoId, cancellationToken);
+                    if (inv != null)
+                    {
+                        inv.Stock = Math.Max(0, inv.Stock - detail.Cantidad);
+                    }
+
+                    // 2. Decrementar stock global
+                    var prod = await Productos.FirstOrDefaultAsync(p => p.Id == detail.ProductoId, cancellationToken);
+                    if (prod != null)
+                    {
+                        prod.StockActual = Math.Max(0, prod.StockActual - detail.Cantidad);
+                    }
+                }
+            }
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -73,12 +136,15 @@ public class PlatformDbContext : DbContext
             builder.Property(x => x.Image).HasMaxLength(500).HasColumnName("image");
             builder.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone").HasColumnName("createdAt");
             builder.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone").HasColumnName("updatedAt");
-            builder.Property(x => x.TiendaId).HasMaxLength(255).IsRequired().HasColumnName("tienda_id");
+            builder.Property(x => x.TiendaId).HasMaxLength(255).IsRequired(false).HasColumnName("tienda_id");
             builder.Property(x => x.TipoUsuario).HasMaxLength(30).IsRequired().HasColumnName("tipo_usuario");
             builder.Property(x => x.RolStaff).HasMaxLength(30).HasColumnName("rol_staff");
             builder.Property(x => x.Telefono).HasMaxLength(30).HasColumnName("telefono");
             builder.Property(x => x.StripeCustomerId).HasMaxLength(255).HasColumnName("stripe_customer_id");
+            builder.Property(x => x.Estado).HasColumnName("estado").HasDefaultValue(true);
+            builder.Property(x => x.SucursalId).HasMaxLength(255).IsRequired(false).HasColumnName("sucursal_id");
             builder.HasOne(x => x.Tienda).WithMany(x => x.Users).HasForeignKey(x => x.TiendaId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne(x => x.Sucursal).WithMany().HasForeignKey(x => x.SucursalId).OnDelete(DeleteBehavior.SetNull);
             builder.HasIndex(x => new { x.Email, x.TiendaId }).IsUnique();
             builder.HasQueryFilter(x => x.TiendaId == _tenantProvider.GetTenantId());
         });
@@ -160,12 +226,15 @@ public class PlatformDbContext : DbContext
             builder.Property(x => x.PrecioDetalle).HasColumnType("numeric").HasPrecision(18, 2).HasColumnName("precio_detalle");
             builder.Property(x => x.ImagenUrl).HasMaxLength(500).HasColumnName("imagen_url");
             builder.Property(x => x.Publicado).IsRequired().HasDefaultValue(true).HasColumnName("publicado");
+            builder.Property(x => x.StockActual).IsRequired().HasDefaultValue(0).HasColumnName("stock_actual");
+            builder.Property(x => x.StockMinimo).IsRequired().HasDefaultValue(0).HasColumnName("stock_minimo");
             builder.Property(x => x.FechaCreacion).HasColumnType("timestamp with time zone").HasDefaultValueSql("NOW()").HasColumnName("fecha_creacion");
+            builder.Property(x => x.Eliminado).HasColumnName("eliminado").HasDefaultValue(false);
             builder.HasOne(x => x.Tienda).WithMany(x => x.Productos).HasForeignKey(x => x.TiendaId).OnDelete(DeleteBehavior.Cascade);
             builder.HasOne(x => x.Categoria).WithMany(x => x.Productos).HasForeignKey(x => x.CategoriaId).OnDelete(DeleteBehavior.SetNull);
             builder.HasIndex(x => x.TiendaId);
             builder.HasIndex(x => x.Sku);
-            builder.HasQueryFilter(x => x.TiendaId == _tenantProvider.GetTenantId());
+            builder.HasQueryFilter(x => x.TiendaId == _tenantProvider.GetTenantId() && !x.Eliminado);
         });
 
         modelBuilder.Entity<Inventario>(builder =>
@@ -258,6 +327,8 @@ public class PlatformDbContext : DbContext
             builder.Property(x => x.CloudinaryCloudName).HasMaxLength(100).HasColumnName("cloudinary_cloud_name");
             builder.Property(x => x.CloudinaryApiKey).HasMaxLength(100).HasColumnName("cloudinary_api_key");
             builder.Property(x => x.CloudinaryApiSecret).HasColumnType("text").HasColumnName("cloudinary_api_secret");
+            builder.Property(x => x.SmtpEmail).HasMaxLength(255).HasColumnName("smtp_email");
+            builder.Property(x => x.SmtpPassword).HasColumnType("text").HasColumnName("smtp_password");
             builder.HasOne(x => x.Tienda).WithOne(x => x.CredencialesIntegracion).HasForeignKey<CredencialesIntegracion>(x => x.TiendaId).OnDelete(DeleteBehavior.Cascade);
             builder.HasQueryFilter(x => x.TiendaId == _tenantProvider.GetTenantId());
         });

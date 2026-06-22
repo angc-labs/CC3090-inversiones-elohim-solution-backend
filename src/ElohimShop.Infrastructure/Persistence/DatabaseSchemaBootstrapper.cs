@@ -10,62 +10,50 @@ public static class DatabaseSchemaBootstrapper
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
-        var connection = dbContext.Database.GetDbConnection();
-        await connection.OpenAsync(cancellationToken);
+        logger.LogInformation("Iniciando verificación y creación del esquema de base de datos vía EF Core...");
 
         try
         {
-            await using var command = connection.CreateCommand();
+            var script = dbContext.Database.GenerateCreateScript();
+            
+            // Separar el script en sentencias individuales usando punto y coma seguido de salto de línea
+            var statements = script.Split(new[] { ";\r\n", ";\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-            command.CommandText = """
-                SELECT COUNT(*)::int
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                  AND table_name = 'Usuario';
-                """;
+            int executedCount = 0;
+            int skippedCount = 0;
 
-            var tableCount = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
-
-            if (tableCount == 0)
+            foreach (var statement in statements)
             {
-                var schemaPath = ResolveSqlPath("elohim_db.sql");
-                if (schemaPath is null)
+                var trimmed = statement.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+                try
                 {
-                    logger.LogWarning("No se encontró db/elohim_db.sql para inicializar el esquema.");
-                    return;
+                    await dbContext.Database.ExecuteSqlRawAsync(trimmed, cancellationToken);
+                    executedCount++;
                 }
-
-                logger.LogInformation("Aplicando esquema inicial desde {Path}", schemaPath);
-                await ExecuteSqlFileAsync(connection, schemaPath, cancellationToken);
+                catch (Exception ex)
+                {
+                    // Ignorar errores si la tabla, índice o constraint ya existe en PostgreSQL
+                    var msg = ex.Message.ToLowerInvariant();
+                    if (msg.Contains("already exists") || 
+                        msg.Contains("ya existe") || 
+                        msg.Contains("duplicate"))
+                    {
+                        skippedCount++;
+                    }
+                    else
+                    {
+                        logger.LogWarning(ex, "Error al ejecutar sentencia de esquema: {Sql}", trimmed);
+                    }
+                }
             }
+
+            logger.LogInformation("Esquema de base de datos procesado. Ejecutados: {Executed}, Omitidos/Existentes: {Skipped}", executedCount, skippedCount);
         }
-        finally
+        catch (Exception ex)
         {
-            await connection.CloseAsync();
+            logger.LogError(ex, "Error crítico durante la inicialización del esquema de la base de datos.");
         }
-    }
-
-    private static string? ResolveSqlPath(string relativePath)
-    {
-        var candidates = new[]
-        {
-            Path.Combine("/db", relativePath),
-            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "db", relativePath),
-            Path.Combine(Directory.GetCurrentDirectory(), "db", relativePath),
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "db", relativePath))
-        };
-
-        return candidates.FirstOrDefault(File.Exists);
-    }
-
-    private static async Task ExecuteSqlFileAsync(
-        System.Data.Common.DbConnection connection,
-        string filePath,
-        CancellationToken cancellationToken)
-    {
-        var sql = await File.ReadAllTextAsync(filePath, cancellationToken);
-        await using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

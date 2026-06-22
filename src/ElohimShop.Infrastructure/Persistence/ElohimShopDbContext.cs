@@ -24,6 +24,7 @@ public class ElohimShopDbContext : DbContext
     public virtual DbSet<TokenRevocado> TokensRevocados { get; set; } = null!;
     public virtual DbSet<Carrito> Carritos { get; set; } = null!;
     public virtual DbSet<ArticuloCarrito> ArticulosCarrito { get; set; } = null!;
+    public virtual DbSet<CodigoRecuperacion> CodigosRecuperacion { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,5 +46,6 @@ public class ElohimShopDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TokenRevocadoConfiguration());
         modelBuilder.ApplyConfiguration(new UsuarioConfiguration());
         modelBuilder.ApplyConfiguration(new VentaConfiguration());
+        modelBuilder.ApplyConfiguration(new CodigoRecuperacionConfiguration());
     }
 }
