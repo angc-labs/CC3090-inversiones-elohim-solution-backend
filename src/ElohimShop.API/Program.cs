@@ -1,4 +1,5 @@
 using ElohimShop.API.Configuration;
+using ElohimShop.API.Middleware;
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Infrastructure.Pagos;
 using ElohimShop.Application.Auth;
@@ -137,7 +138,8 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 builder.Services.AddDbContext<ElohimShopDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(connectionString)
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
 builder.Services.AddDbContext<PlatformDbContext>(options =>
     options.UseNpgsql(connectionString));
@@ -205,10 +207,19 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var platformDbContext = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+    var elohimShopDbContext = scope.ServiceProvider.GetRequiredService<ElohimShopDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
         .CreateLogger("PlatformDbBootstrapper");
 
     await PlatformDatabaseBootstrapper.EnsureCreatedAsync(platformDbContext, logger, app.Lifetime.ApplicationStopping);
+    await DatabaseSchemaBootstrapper.EnsureSchemaAsync(elohimShopDbContext, logger, app.Lifetime.ApplicationStopping);
+
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    var seedDataVal = Environment.GetEnvironmentVariable("SEED_DATA") ?? config["SEED_DATA"];
+    var seedData = string.Equals(seedDataVal, "true", StringComparison.OrdinalIgnoreCase);
+
+    await PlatformDemoDataSeeder.SeedAsync(platformDbContext, seedData, logger, app.Lifetime.ApplicationStopping);
+    await DemoDataSeeder.SeedAsync(elohimShopDbContext, seedData, logger, app.Lifetime.ApplicationStopping);
 }
 
 app.Use(async (context, next) =>
@@ -229,6 +240,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
+app.UseMiddleware<TenantResolverMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<BetterAuthSessionMiddleware>();
 app.UseAuthorization();

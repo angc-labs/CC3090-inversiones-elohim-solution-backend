@@ -1,18 +1,23 @@
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using ElohimShop.Application.Admin;
 using ElohimShop.Infrastructure.Persistence;
+using ElohimShop.Infrastructure.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace ElohimShop.Infrastructure.Auth;
 
 public class BetterAuthSessionMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly IConfiguration _configuration;
 
-    public BetterAuthSessionMiddleware(RequestDelegate next)
+    public BetterAuthSessionMiddleware(RequestDelegate next, IConfiguration configuration)
     {
         _next = next;
+        _configuration = configuration;
     }
 
     public async Task InvokeAsync(HttpContext context, PlatformDbContext dbContext)
@@ -50,13 +55,56 @@ public class BetterAuthSessionMiddleware
             if (session != null && session.ExpiresAt > DateTime.UtcNow && session.User != null)
             {
                 var user = session.User;
+                string? effectiveTiendaId = user.TiendaId;
+
+                // Validate tenant access
+                if (context.Request.Headers.TryGetValue("X-Tenant-ID", out var tenantIdHeader) && !string.IsNullOrWhiteSpace(tenantIdHeader))
+                {
+                    var requestedTenantId = tenantIdHeader.ToString();
+                    var esSuperAdmin = string.Equals(user.RolStaff, "superadmin", StringComparison.OrdinalIgnoreCase) ||
+                                       SuperAdminHelper.IsSuperAdminEmail(user.Email, _configuration["SuperAdmin:Email"]);
+
+                    if (user.TiendaId != requestedTenantId)
+                    {
+                        if (user.TipoUsuario == "cliente")
+                        {
+                            // Ignore customer session of other stores, treat request as anonymous guest
+                            await _next(context);
+                            return;
+                        }
+
+                        // Check if they have a user record in the target store
+                        var targetUser = await dbContext.Users
+                            .IgnoreQueryFilters()
+                            .FirstOrDefaultAsync(u => u.Email == user.Email && u.TiendaId == requestedTenantId);
+
+                        if (targetUser != null)
+                        {
+                            user = targetUser;
+                            effectiveTiendaId = targetUser.TiendaId;
+                        }
+                        else
+                        {
+                            if (!esSuperAdmin)
+                            {
+                                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                                context.Response.ContentType = "application/json";
+                                await context.Response.WriteAsJsonAsync(new { error = "No tienes acceso a esta tienda." });
+                                return;
+                            }
+
+                            effectiveTiendaId = requestedTenantId;
+                        }
+                    }
+                }
+
                 var claims = new List<Claim>
                 {
                     new(ClaimTypes.NameIdentifier, user.Id),
                     new(JwtRegisteredClaimNames.Sub, user.Id),
                     new(ClaimTypes.Email, user.Email),
                     new(ClaimTypes.Name, user.Name),
-                    new("tienda_id", user.TiendaId),
+                    new("tienda_id", effectiveTiendaId ?? string.Empty),
                     new("tipo_usuario", user.TipoUsuario),
                     new("tipoUsuario", user.TipoUsuario)
                 };

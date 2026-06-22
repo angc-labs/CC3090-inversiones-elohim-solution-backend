@@ -6,6 +6,7 @@ using ElohimShop.Application.Auth;
 using ElohimShop.Domain.Platform;
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Infrastructure.Security;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using PlatformUser = ElohimShop.Domain.Platform.User;
@@ -18,15 +19,18 @@ public class AuthService : IAuthService
     private readonly PlatformDbContext _dbContext;
     private readonly IConfiguration _configuration;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public AuthService(
         PlatformDbContext dbContext,
         IConfiguration configuration,
-        ITenantProvider tenantProvider)
+        ITenantProvider tenantProvider,
+        IHttpContextAccessor httpContextAccessor)
     {
         _dbContext = dbContext;
         _configuration = configuration;
         _tenantProvider = tenantProvider;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken)
@@ -103,15 +107,48 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto> RegisterAdminAsync(RegisterRequestDto request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Rol))
+        var httpContext = _httpContextAccessor.HttpContext;
+        var isAnonymous = httpContext?.User?.Identity?.IsAuthenticated != true;
+
+        string? tenantId = null;
+        if (!isAnonymous)
+        {
+            tenantId = _tenantProvider.GetTenantId();
+        }
+
+        var esCreadorCuenta = string.IsNullOrWhiteSpace(tenantId);
+
+        if (!esCreadorCuenta && string.IsNullOrWhiteSpace(request.Rol))
         {
             throw new ArgumentException("El campo rol es requerido para personal de la tienda.");
         }
-
-        var tenantId = _tenantProvider.GetTenantId();
-        if (string.IsNullOrWhiteSpace(tenantId))
+        if (esCreadorCuenta)
         {
-            throw new InvalidOperationException("Se requiere el tenant (tienda_id) para registrar personal.");
+            var nuevaTiendaId = Guid.NewGuid().ToString();
+            var slug = $"tienda-{Guid.NewGuid().ToString().Substring(0, 8)}";
+            var tienda = new Tienda
+            {
+                Id = nuevaTiendaId,
+                Nombre = $"Tienda de {request.Nombre}",
+                Slug = slug,
+                Estado = "activo",
+                ConfiguracionVisual = "{}",
+                FechaCreacion = DateTime.UtcNow
+            };
+            _dbContext.Tiendas.Add(tienda);
+
+            var sucursal = new Sucursal
+            {
+                Id = Guid.NewGuid().ToString(),
+                TiendaId = nuevaTiendaId,
+                Nombre = "Sucursal Principal",
+                Direccion = request.Direccion ?? "Dirección Principal",
+                Telefono = request.Telefono ?? "Teléfono Principal",
+                FechaCreacion = DateTime.UtcNow
+            };
+            _dbContext.Sucursales.Add(sucursal);
+
+            tenantId = nuevaTiendaId;
         }
 
         var email = request.Correo.Trim().ToLowerInvariant();
@@ -134,7 +171,7 @@ public class AuthService : IAuthService
             EmailVerified = false,
             TiendaId = tenantId,
             TipoUsuario = "staff",
-            RolStaff = request.Rol.Trim().ToLowerInvariant(),
+            RolStaff = esCreadorCuenta ? "administrador" : request.Rol.Trim().ToLowerInvariant(),
             Telefono = request.Telefono,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -158,9 +195,8 @@ public class AuthService : IAuthService
 
         var session = await CreateSessionAsync(usuario.Id, cancellationToken);
 
-        var esSuperAdmin = SuperAdminHelper.IsSuperAdminEmail(
-            usuario.Email,
-            _configuration["SuperAdmin:Email"]);
+        var esSuperAdmin = string.Equals(usuario.RolStaff, "superadmin", StringComparison.OrdinalIgnoreCase) ||
+                           SuperAdminHelper.IsSuperAdminEmail(usuario.Email, _configuration["SuperAdmin:Email"]);
 
         return new AuthResponseDto(
             usuario.Id,
@@ -178,16 +214,22 @@ public class AuthService : IAuthService
     {
         var email = request.Correo.Trim().ToLowerInvariant();
 
-        // Query across all stores/tenants if tenant is not specified, or scope to current tenant
-        var query = _dbContext.Users.IgnoreQueryFilters();
-        
-        var tenantId = _tenantProvider.GetTenantId();
-        if (!string.IsNullOrWhiteSpace(tenantId))
-        {
-            query = query.Where(u => u.TiendaId == tenantId);
-        }
+        // First try to find a staff/admin user globally
+        var usuario = await _dbContext.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Email == email && (u.TipoUsuario == "staff" || u.TipoUsuario == "administrador"), cancellationToken);
 
-        var usuario = await query.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+        // If no staff/admin found, query for a client scoped to the current tenant
+        if (usuario is null)
+        {
+            var query = _dbContext.Users.IgnoreQueryFilters().Where(u => u.TipoUsuario == "cliente");
+            var tenantId = _tenantProvider.GetTenantId();
+            if (!string.IsNullOrWhiteSpace(tenantId))
+            {
+                query = query.Where(u => u.TiendaId == tenantId);
+            }
+            usuario = await query.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+        }
 
         if (usuario is null)
         {
@@ -205,9 +247,8 @@ public class AuthService : IAuthService
 
         var session = await CreateSessionAsync(usuario.Id, cancellationToken);
 
-        var esSuperAdmin = SuperAdminHelper.IsSuperAdminEmail(
-            usuario.Email,
-            _configuration["SuperAdmin:Email"]);
+        var esSuperAdmin = string.Equals(usuario.RolStaff, "superadmin", StringComparison.OrdinalIgnoreCase) ||
+                           SuperAdminHelper.IsSuperAdminEmail(usuario.Email, _configuration["SuperAdmin:Email"]);
 
         var mappedTipoUsuario = usuario.TipoUsuario == "staff" ? "administrador" : "cliente";
 
