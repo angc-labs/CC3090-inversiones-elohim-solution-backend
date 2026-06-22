@@ -118,12 +118,13 @@ public class ReportesController : ControllerBase
     private bool EsPanelAdmin()
     {
         var tipoUsuario = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
-        if (string.Equals(tipoUsuario, "administrador", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(tipoUsuario, "administrador", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(tipoUsuario, "admin", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        var rol = User.FindFirstValue("rol");
-        return rol is "administrador" or "cajero";
+        var rol = User.FindFirstValue("rol") ?? User.FindFirstValue("rol_staff");
+        return rol is "administrador" or "admin" or "cajero" or "superadmin";
     }
 }

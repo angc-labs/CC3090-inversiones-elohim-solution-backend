@@ -22,7 +22,19 @@ public class ReportesV1Controller : V1ControllerBase
             return Forbid();
         }
 
-        return Ok(await _platformService.EjecutarRawReporteAsync(request, cancellationToken));
+        try
+        {
+            var resultado = await _platformService.EjecutarRawReporteAsync(request, cancellationToken);
+            return Ok(resultado);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al ejecutar la consulta: " + ex.Message });
+        }
     }
 
     [HttpPost("guardar")]

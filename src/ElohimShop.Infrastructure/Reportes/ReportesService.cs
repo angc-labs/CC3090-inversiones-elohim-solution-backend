@@ -1,6 +1,12 @@
 using ElohimShop.Application.Reportes;
 using ElohimShop.Infrastructure.Persistence;
+using ElohimShop.Domain.Platform;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ElohimShop.Infrastructure.Reportes;
 
@@ -10,17 +16,9 @@ public class ReportesService : IReportesService
     private const string ModoReservaciones = "reservaciones";
     private const string EmpleadoReservacionWeb = "Reservaciones en línea";
 
-    private static readonly string[] EstadosReservacionCompletada =
-    [
-        "completada",
-        "entregada",
-        "finalizada",
-        "confirmada"
-    ];
+    private readonly PlatformDbContext _dbContext;
 
-    private readonly ElohimShopDbContext _dbContext;
-
-    public ReportesService(ElohimShopDbContext dbContext)
+    public ReportesService(PlatformDbContext dbContext)
     {
         _dbContext = dbContext;
     }
@@ -106,7 +104,7 @@ public class ReportesService : IReportesService
             .OrderBy(p => p.StockActual)
             .Select(p => new
             {
-                p.NombreProducto,
+                p.Nombre,
                 p.StockActual,
                 p.StockMinimo
             })
@@ -116,7 +114,7 @@ public class ReportesService : IReportesService
             .Where(p => p.StockActual < p.StockMinimo)
             .Select(p => new
             {
-                p.NombreProducto,
+                NombreProducto = p.Nombre,
                 p.StockActual,
                 p.StockMinimo,
                 Faltante = p.StockActual - p.StockMinimo,
@@ -144,42 +142,33 @@ public class ReportesService : IReportesService
     {
         var (desde, hasta) = NormalizarRango(filtro);
         var modo = NormalizarModo(filtro.Modo);
-        var reservacionIdsConVenta = await ObtenerReservacionIdsConVentaAsync(cancellationToken);
 
-        var eventos = new List<(DateTime Fecha, string? ClienteId)>();
+        var query = _dbContext.Reservaciones
+            .AsNoTracking()
+            .Where(r => r.FechaReserva >= desde && r.FechaReserva <= hasta);
 
-        if (modo is not ModoVentas)
+        if (modo == ModoVentas)
         {
-            var reservaciones = await _dbContext.Reservaciones
-                .AsNoTracking()
-                .Where(r => r.Pagado || EstadosReservacionCompletada.Contains(r.EstadoRenovacion))
-                .Where(r => r.FechaRenovacion >= desde && r.FechaRenovacion <= hasta)
-                .Where(r => modo == ModoReservaciones || !reservacionIdsConVenta.Contains(r.IdReservacion))
-                .Select(r => new { r.FechaRenovacion, r.ClienteId })
-                .ToListAsync(cancellationToken);
-
-            eventos.AddRange(reservaciones.Select(r => (r.FechaRenovacion, r.ClienteId)));
+            query = query.Where(r => r.EstadoPago == "pagado");
+        }
+        else if (modo == ModoReservaciones)
+        {
+            query = query.Where(r => r.EstadoPago != "pagado");
         }
 
-        if (modo is ModoVentas or "todos")
-        {
-            var ventas = await _dbContext.Ventas
-                .AsNoTracking()
-                .Where(v => v.EstadoVenta != "cancelada")
-                .Where(v => v.FechaVenta >= desde && v.FechaVenta <= hasta)
-                .Select(v => new { v.FechaVenta, ClienteId = v.Reservacion != null ? v.Reservacion.ClienteId : null })
-                .ToListAsync(cancellationToken);
+        var eventosDb = await query
+            .Select(r => new { r.FechaReserva, r.UsuarioId })
+            .ToListAsync(cancellationToken);
 
-            eventos.AddRange(ventas.Select(v => (v.FechaVenta, v.ClienteId)));
-        }
+        var eventos = eventosDb.Select(e => (e.FechaReserva, e.UsuarioId)).ToList();
 
         var porHora = Enumerable.Range(8, 11)
             .Select(hora =>
             {
-                var enHora = eventos.Where(e => e.Fecha.ToUniversalTime().Hour == hora).ToList();
+                var enHora = eventos.Where(e => e.FechaReserva.ToUniversalTime().Hour == hora).ToList();
                 var ventasCount = enHora.Count;
                 var clientes = enHora
-                    .Select(e => e.ClienteId)
+                    .Select(e => e.UsuarioId)
                     .Where(id => id != null)
                     .Distinct()
                     .Count();
@@ -220,46 +209,32 @@ public class ReportesService : IReportesService
     {
         var (desde, hasta) = NormalizarRango(filtro);
         var modo = NormalizarModo(filtro.Modo);
-        var reservacionIdsConVenta = await ObtenerReservacionIdsConVentaAsync(cancellationToken);
 
-        var movimientos = new List<(string Metodo, decimal Monto)>();
+        var query = _dbContext.Reservaciones
+            .AsNoTracking()
+            .Where(r => r.FechaReserva >= desde && r.FechaReserva <= hasta);
 
-        if (modo is not ModoVentas)
+        if (modo == ModoVentas)
         {
-            var reservaciones = await _dbContext.Reservaciones
-                .AsNoTracking()
-                .Where(r => r.Pagado)
-                .Where(r => r.FechaRenovacion >= desde && r.FechaRenovacion <= hasta)
-                .Where(r => r.MetodoPagoId != null)
-                .Where(r => modo == ModoReservaciones || !reservacionIdsConVenta.Contains(r.IdReservacion))
-                .Select(r => new
-                {
-                    Metodo = r.MetodoPago != null ? r.MetodoPago.NombreMetodo : "Otro",
-                    Monto = r.TotalRenovacion ?? 0
-                })
-                .ToListAsync(cancellationToken);
-
-            movimientos.AddRange(reservaciones.Select(r => (NormalizarMetodoPago(r.Metodo), r.Monto)));
+            query = query.Where(r => r.EstadoPago == "pagado");
+        }
+        else if (modo == ModoReservaciones)
+        {
+            query = query.Where(r => r.EstadoPago != "pagado");
         }
 
-        if (modo is ModoVentas or "todos")
-        {
-            var ventas = await _dbContext.Ventas
-                .AsNoTracking()
-                .Include(v => v.Reservacion)
-                .ThenInclude(r => r!.MetodoPago)
-                .Where(v => v.EstadoVenta != "cancelada")
-                .Where(v => v.FechaVenta >= desde && v.FechaVenta <= hasta)
-                .Where(v => v.Reservacion != null && v.Reservacion.MetodoPago != null)
-                .Select(v => new
-                {
-                    Metodo = v.Reservacion!.MetodoPago!.NombreMetodo,
-                    v.MontoTotal
-                })
-                .ToListAsync(cancellationToken);
+        var reservaciones = await query
+            .Select(r => new
+            {
+                r.StripeIntentId,
+                Monto = r.MontoTotal
+            })
+            .ToListAsync(cancellationToken);
 
-            movimientos.AddRange(ventas.Select(v => (NormalizarMetodoPago(v.Metodo), v.MontoTotal)));
-        }
+        var movimientos = reservaciones.Select(r => new {
+            Metodo = string.IsNullOrEmpty(r.StripeIntentId) ? "Efectivo" : "Tarjeta",
+            r.Monto
+        }).ToList();
 
         var agrupados = movimientos
             .GroupBy(m => m.Metodo)
@@ -295,53 +270,31 @@ public class ReportesService : IReportesService
     {
         var (desde, hasta) = NormalizarRango(filtro);
         var modo = NormalizarModo(filtro.Modo);
-        var reservacionIdsConVenta = await ObtenerReservacionIdsConVentaAsync(cancellationToken);
-        var lineas = new List<LineaProducto>();
 
-        if (modo is not ModoVentas)
+        var query = _dbContext.DetallesReservacion
+            .AsNoTracking()
+            .Include(d => d.Producto)
+            .Include(d => d.Reservacion)
+            .Where(d => d.Reservacion!.FechaReserva >= desde && d.Reservacion.FechaReserva <= hasta);
+
+        if (modo == ModoVentas)
         {
-            var detallesReserva = await _dbContext.DetallesReservacion
-                .AsNoTracking()
-                .Where(d => d.ReservacionId != null)
-                .Join(
-                    _dbContext.Reservaciones.AsNoTracking(),
-                    d => d.ReservacionId,
-                    r => r.IdReservacion,
-                    (d, r) => new { Detalle = d, Reservacion = r })
-                .Where(x => x.Reservacion.Pagado || EstadosReservacionCompletada.Contains(x.Reservacion.EstadoRenovacion))
-                .Where(x => x.Reservacion.FechaRenovacion >= desde && x.Reservacion.FechaRenovacion <= hasta)
-                .Where(x => modo == ModoReservaciones || !reservacionIdsConVenta.Contains(x.Reservacion.IdReservacion))
-                .Select(x => new LineaProducto(
-                    x.Detalle.NombreProducto,
-                    x.Detalle.Cantidad,
-                    x.Detalle.Subtotal))
-                .ToListAsync(cancellationToken);
-
-            lineas.AddRange(detallesReserva);
+            query = query.Where(d => d.Reservacion!.EstadoPago == "pagado");
+        }
+        else if (modo == ModoReservaciones)
+        {
+            query = query.Where(d => d.Reservacion!.EstadoPago != "pagado");
         }
 
-        if (modo is ModoVentas or "todos")
-        {
-            var detallesVenta = await _dbContext.DetallesReservacion
-                .AsNoTracking()
-                .Where(d => d.ReservacionId != null)
-                .Join(
-                    _dbContext.Ventas.AsNoTracking(),
-                    d => d.ReservacionId,
-                    v => v.ReservacionId,
-                    (d, v) => new { Detalle = d, Venta = v })
-                .Where(x => x.Venta.EstadoVenta != "cancelada")
-                .Where(x => x.Venta.FechaVenta >= desde && x.Venta.FechaVenta <= hasta)
-                .Select(x => new LineaProducto(
-                    x.Detalle.NombreProducto,
-                    x.Detalle.Cantidad,
-                    x.Detalle.Subtotal))
-                .ToListAsync(cancellationToken);
+        var list = await query
+            .Select(d => new {
+                Nombre = d.Producto != null ? d.Producto.Nombre : "Producto eliminado",
+                d.Cantidad,
+                d.Subtotal
+            })
+            .ToListAsync(cancellationToken);
 
-            lineas.AddRange(detallesVenta);
-        }
-
-        return lineas;
+        return list.Select(d => new LineaProducto(d.Nombre, d.Cantidad, d.Subtotal)).ToList();
     }
 
     private async Task<List<TransaccionEmpleado>> ObtenerTransaccionesEmpleadoAsync(
@@ -350,53 +303,30 @@ public class ReportesService : IReportesService
     {
         var (desde, hasta) = NormalizarRango(filtro);
         var modo = NormalizarModo(filtro.Modo);
-        var reservacionIdsConVenta = await ObtenerReservacionIdsConVentaAsync(cancellationToken);
         var transacciones = new List<TransaccionEmpleado>();
 
-        if (modo is not ModoVentas)
-        {
-            var reservaciones = await _dbContext.Reservaciones
-                .AsNoTracking()
-                .Where(r => r.Pagado || EstadosReservacionCompletada.Contains(r.EstadoRenovacion))
-                .Where(r => r.FechaRenovacion >= desde && r.FechaRenovacion <= hasta)
-                .Where(r => modo == ModoReservaciones || !reservacionIdsConVenta.Contains(r.IdReservacion))
-                .Select(r => new { r.TotalRenovacion })
-                .ToListAsync(cancellationToken);
-
-            transacciones.AddRange(reservaciones.Select(r => new TransaccionEmpleado(
-                EmpleadoReservacionWeb,
-                r.TotalRenovacion ?? 0)));
-        }
-
-        if (modo is ModoVentas or "todos")
-        {
-            var ventas = await _dbContext.Ventas
-                .AsNoTracking()
-                .Include(v => v.UsuarioCajero)
-                .Where(v => v.EstadoVenta != "cancelada")
-                .Where(v => v.FechaVenta >= desde && v.FechaVenta <= hasta)
-                .Select(v => new TransaccionEmpleado(
-                    v.UsuarioCajero != null
-                        ? $"{v.UsuarioCajero.Nombre} {v.UsuarioCajero.Apellido}".Trim()
-                        : "Sin asignar",
-                    v.MontoTotal))
-                .ToListAsync(cancellationToken);
-
-            transacciones.AddRange(ventas);
-        }
-
-        return transacciones;
-    }
-
-    private async Task<HashSet<string>> ObtenerReservacionIdsConVentaAsync(CancellationToken cancellationToken)
-    {
-        var ids = await _dbContext.Ventas
+        var query = _dbContext.Reservaciones
             .AsNoTracking()
-            .Where(v => v.ReservacionId != null)
-            .Select(v => v.ReservacionId!)
+            .Where(r => r.FechaReserva >= desde && r.FechaReserva <= hasta);
+
+        if (modo == ModoVentas)
+        {
+            query = query.Where(r => r.EstadoPago == "pagado");
+        }
+        else if (modo == ModoReservaciones)
+        {
+            query = query.Where(r => r.EstadoPago != "pagado");
+        }
+
+        var reservaciones = await query
+            .Select(r => new { r.MontoTotal })
             .ToListAsync(cancellationToken);
 
-        return ids.ToHashSet(StringComparer.Ordinal);
+        transacciones.AddRange(reservaciones.Select(r => new TransaccionEmpleado(
+            EmpleadoReservacionWeb,
+            r.MontoTotal)));
+
+        return transacciones;
     }
 
     private static (DateTime Desde, DateTime Hasta) NormalizarRango(ReportesFiltroDto filtro)
@@ -450,35 +380,8 @@ public class ReportesService : IReportesService
         return "Normal";
     }
 
-    private static string NormalizarMetodoPago(string metodo)
-    {
-        var normalizado = metodo.Trim();
-        if (normalizado.Contains("yape", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Yape";
-        }
-
-        if (normalizado.Contains("plin", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Plin";
-        }
-
-        if (normalizado.Contains("efect", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Efectivo";
-        }
-
-        if (normalizado.Contains("tarj", StringComparison.OrdinalIgnoreCase)
-            || normalizado.Contains("card", StringComparison.OrdinalIgnoreCase)
-            || normalizado.Contains("stripe", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Tarjeta";
-        }
-
-        return string.IsNullOrWhiteSpace(normalizado) ? "Otro" : normalizado;
-    }
-
     private sealed record LineaProducto(string NombreProducto, int Cantidad, decimal Subtotal);
 
     private sealed record TransaccionEmpleado(string Empleado, decimal Monto);
 }
+
