@@ -3,6 +3,7 @@ using ElohimShop.Domain.Platform;
 using ElohimShop.Infrastructure.Auth;
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Infrastructure.Security;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Moq;
@@ -33,7 +34,12 @@ public class AuthServiceTests
         _configMock = new Mock<IConfiguration>();
         _configMock.Setup(c => c["SuperAdmin:Email"]).Returns("superadmin@test.com");
 
-        _service = new AuthService(_dbContext, _configMock.Object, _tenantProviderMock.Object);
+        var httpContextAccessorMock = new Mock<IHttpContextAccessor>();
+        var httpContext = new DefaultHttpContext();
+        httpContext.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity("TestAuth"));
+        httpContextAccessorMock.Setup(h => h.HttpContext).Returns(httpContext);
+
+        _service = new AuthService(_dbContext, _configMock.Object, _tenantProviderMock.Object, httpContextAccessorMock.Object);
     }
 
     [Fact]
@@ -129,12 +135,49 @@ public class AuthServiceTests
         {
             Correo = "admin@test.com",
             Nombre = "Admin",
-            Contrasena = "Password123!",
             TipoUsuario = "administrador"
         };
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             _service.RegisterAdminAsync(request, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RegisterAdminAsync_AnonymousStoreCreator_AssignsAdministradorRole()
+    {
+        // Arrange
+        var httpContextAccessorMock = new Mock<IHttpContextAccessor>();
+        var httpContext = new DefaultHttpContext();
+        // User identity is not authenticated (anonymous)
+        httpContext.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity());
+        httpContextAccessorMock.Setup(h => h.HttpContext).Returns(httpContext);
+
+        var service = new AuthService(_dbContext, _configMock.Object, _tenantProviderMock.Object, httpContextAccessorMock.Object);
+
+        var request = new RegisterRequestDto
+        {
+            Correo = "newstoreadmin@test.com",
+            Nombre = "Store",
+            Apellido = "Owner",
+            Contrasena = "Password123!",
+            TipoUsuario = "administrador",
+            Rol = "administrador"
+        };
+
+        // Act
+        var result = await service.RegisterAdminAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("newstoreadmin@test.com", result.Correo);
+        Assert.Equal("administrador", result.TipoUsuario);
+        Assert.Equal("administrador", result.Rol);
+        Assert.False(result.EsSuperAdmin);
+
+        // Verify the user in db has RolStaff == "administrador"
+        var dbUser = await _dbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == "newstoreadmin@test.com");
+        Assert.NotNull(dbUser);
+        Assert.Equal("administrador", dbUser.RolStaff);
     }
 
     [Fact]

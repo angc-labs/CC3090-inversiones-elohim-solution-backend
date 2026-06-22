@@ -1,14 +1,20 @@
 using ElohimShop.Application.Admin;
 using ElohimShop.Infrastructure.Persistence;
+using ElohimShop.Domain.Platform;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ElohimShop.Infrastructure.Admin;
 
 public class AdminVentasService : IAdminVentasService
 {
-    private readonly ElohimShopDbContext _dbContext;
+    private readonly PlatformDbContext _dbContext;
 
-    public AdminVentasService(ElohimShopDbContext dbContext)
+    public AdminVentasService(PlatformDbContext dbContext)
     {
         _dbContext = dbContext;
     }
@@ -20,16 +26,14 @@ public class AdminVentasService : IAdminVentasService
         string? filtroMetodoPago,
         CancellationToken cancellationToken)
     {
-        var ventasDb = await _dbContext.Ventas
+        var query = _dbContext.Reservaciones
             .AsNoTracking()
-            .Include(v => v.Reservacion)
-                .ThenInclude(r => r!.Cliente)
-            .Include(v => v.Reservacion)
-                .ThenInclude(r => r!.MetodoPago)
-            .Include(v => v.Reservacion)
-                .ThenInclude(r => r!.Detalles)
-            .Include(v => v.UsuarioCajero)
-            .OrderByDescending(v => v.FechaVenta)
+            .Include(r => r.Usuario)
+            .Include(r => r.Detalles)
+            .Where(r => r.EstadoPago == "pagado");
+
+        var ventasDb = await query
+            .OrderByDescending(v => v.FechaReserva)
             .ToListAsync(cancellationToken);
 
         var items = ventasDb.Select(MapVenta).ToList();
@@ -77,51 +81,31 @@ public class AdminVentasService : IAdminVentasService
         return new VentasAdminListadoDto(resumen, items);
     }
 
-    private static VentaAdminItemDto MapVenta(Domain.Entities.Venta venta)
+    private static VentaAdminItemDto MapVenta(Reservacion reservacion)
     {
-        var detalles = venta.Reservacion?.Detalles ?? Array.Empty<Domain.Entities.DetalleReservacion>();
+        var detalles = reservacion.Detalles ?? new List<DetalleReservacion>();
         var subtotal = detalles.Sum(d => d.Subtotal);
         if (subtotal <= 0)
         {
-            subtotal = venta.MontoTotal;
+            subtotal = reservacion.MontoTotal;
         }
 
-        var cliente = venta.Reservacion?.Cliente;
+        var cliente = reservacion.Usuario;
         var nombreCliente = cliente is null
             ? "Cliente no registrado"
-            : string.Join(" ", new[] { cliente.Nombre, cliente.Apellido }.Where(s => !string.IsNullOrWhiteSpace(s)));
-
-        var cajero = venta.UsuarioCajero;
-        var nombreCajero = cajero is null
-            ? "—"
-            : string.Join(" ", new[] { cajero.Nombre, cajero.Apellido }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            : cliente.Name;
 
         return new VentaAdminItemDto(
-            venta.IdVenta,
+            reservacion.Id,
             nombreCliente,
             detalles.Sum(d => d.Cantidad),
             subtotal,
             0,
-            venta.MontoTotal,
-            venta.FechaVenta,
-            NormalizarMetodoPago(venta.Reservacion?.MetodoPago?.NombreMetodo),
-            nombreCajero,
-            venta.EstadoVenta);
-    }
-
-    private static string NormalizarMetodoPago(string? nombreMetodo)
-    {
-        if (string.IsNullOrWhiteSpace(nombreMetodo))
-        {
-            return "efectivo";
-        }
-
-        var nombre = nombreMetodo.ToLowerInvariant();
-        if (nombre.Contains("efectivo") || nombre.Contains("cash"))
-        {
-            return "efectivo";
-        }
-
-        return "tarjeta";
+            reservacion.MontoTotal,
+            reservacion.FechaReserva,
+            string.IsNullOrEmpty(reservacion.StripeIntentId) ? "efectivo" : "tarjeta",
+            "Venta en línea",
+            "completada");
     }
 }
+

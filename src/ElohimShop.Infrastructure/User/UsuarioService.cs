@@ -1,5 +1,4 @@
 using ElohimShop.Application.Usuario;
-using ElohimShop.Domain.Entities;
 using ElohimShop.Infrastructure.Persistence;
 using ElohimShop.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
@@ -8,10 +7,10 @@ namespace ElohimShop.Infrastructure.User;
 
 public class UsuarioService : IUsuarioService
 {
-    private readonly ElohimShopDbContext _dbContext;
+    private readonly PlatformDbContext _dbContext;
     private readonly IPasswordHashing _passwordHashing;
 
-    public UsuarioService(ElohimShopDbContext dbContext, IPasswordHashing passwordHashing)
+    public UsuarioService(PlatformDbContext dbContext, IPasswordHashing passwordHashing)
     {
         _dbContext = dbContext;
         _passwordHashing = passwordHashing;
@@ -19,48 +18,52 @@ public class UsuarioService : IUsuarioService
 
     public async Task<UsuarioPerfilDto?> ObtenerPerfilAsync(string usuarioId, CancellationToken cancellationToken)
     {
-        var usuario = await _dbContext.Usuarios
+        var user = await _dbContext.Users
+            .IgnoreQueryFilters()
             .AsNoTracking()
-            .Include(u => u.ClientePerfil)
-            .Include(u => u.AdministradorPerfil)
             .FirstOrDefaultAsync(u => u.Id == usuarioId, cancellationToken);
 
-        if (usuario is null)
+        if (user is null)
         {
             return null;
         }
 
+        var nameParts = user.Name.Split(new[] { ' ' }, 2);
+        var nombre = nameParts[0];
+        var apellido = nameParts.Length > 1 ? nameParts[1] : string.Empty;
+
         return new UsuarioPerfilDto
         {
-            UsuarioId = usuario.Id,
-            Nombre = usuario.Nombre,
-            Apellido = usuario.Apellido,
-            Correo = usuario.Correo,
-            Telefono = usuario.Telefono,
-            TipoUsuario = usuario.TipoUsuario,
-            TipoCliente = usuario.ClientePerfil?.TipoCliente,
-            Direccion = usuario.ClientePerfil?.Direccion,
-            Rol = usuario.AdministradorPerfil?.Rol,
-            FechaRegistro = usuario.FechaCreacion
+            UsuarioId = user.Id,
+            Nombre = nombre,
+            Apellido = apellido,
+            Correo = user.Email,
+            Telefono = user.Telefono,
+            TipoUsuario = user.TipoUsuario == "staff" ? "administrador" : "cliente",
+            TipoCliente = user.TipoUsuario == "cliente" ? "particular" : null,
+            Direccion = null,
+            Rol = user.RolStaff,
+            FechaRegistro = user.CreatedAt
         };
     }
 
     public async Task<PerfilActualizadoDto> ActualizarPerfilAsync(string usuarioId, ActualizarPerfilDto dto, CancellationToken cancellationToken)
     {
-        var usuario = await _dbContext.Usuarios
-            .Include(u => u.ClientePerfil)
+        var user = await _dbContext.Users
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Id == usuarioId, cancellationToken);
 
-        if (usuario is null)
+        if (user is null)
         {
             throw new InvalidOperationException("Usuario no encontrado.");
         }
 
         string? nuevoCorreo = null;
-        if (!string.IsNullOrWhiteSpace(dto.Correo) && dto.Correo != usuario.Correo)
+        if (!string.IsNullOrWhiteSpace(dto.Correo) && dto.Correo != user.Email)
         {
-            var correoExiste = await _dbContext.Usuarios
-                .AnyAsync(u => u.Correo == dto.Correo.Trim() && u.Id != usuarioId, cancellationToken);
+            var correoExiste = await _dbContext.Users
+                .IgnoreQueryFilters()
+                .AnyAsync(u => u.Email == dto.Correo.Trim() && u.Id != usuarioId, cancellationToken);
 
             if (correoExiste)
             {
@@ -70,28 +73,56 @@ public class UsuarioService : IUsuarioService
             nuevoCorreo = dto.Correo.Trim();
         }
 
-        usuario.ActualizarPerfil(nuevoCorreo, dto.Nombre, dto.Apellido, dto.Telefono);
-
-        if (usuario.ClientePerfil is not null && dto.Direccion is not null)
+        user.Name = $"{dto.Nombre} {dto.Apellido}".Trim();
+        if (nuevoCorreo != null)
         {
-            usuario.ClientePerfil.Direccion = string.IsNullOrWhiteSpace(dto.Direccion) ? null : dto.Direccion.Trim();
+            user.Email = nuevoCorreo;
         }
+        user.Telefono = dto.Telefono;
+        user.UpdatedAt = DateTime.UtcNow;
 
         if (!string.IsNullOrWhiteSpace(dto.Contrasena))
         {
-            var hashedPassword = _passwordHashing.HashPassword(dto.Contrasena);
-            usuario.ActualizarContrasena(hashedPassword);
+            var hashedPassword = ElohimShop.Infrastructure.Security.PasswordHashing.Hash(dto.Contrasena);
+            var account = await _dbContext.Accounts
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(a => a.UserId == usuarioId && a.ProviderId == "credential", cancellationToken);
+
+            if (account is null)
+            {
+                account = new ElohimShop.Domain.Platform.Account
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    UserId = usuarioId,
+                    ProviderId = "credential",
+                    AccountId = user.Email,
+                    Password = hashedPassword,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _dbContext.Accounts.Add(account);
+            }
+            else
+            {
+                account.Password = hashedPassword;
+                account.AccountId = user.Email;
+                account.UpdatedAt = DateTime.UtcNow;
+            }
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var nameParts = user.Name.Split(new[] { ' ' }, 2);
+        var nombreRes = nameParts[0];
+        var apellidoRes = nameParts.Length > 1 ? nameParts[1] : string.Empty;
+
         return new PerfilActualizadoDto
         {
-            UsuarioId = usuario.Id,
-            Nombre = usuario.Nombre,
-            Apellido = usuario.Apellido,
-            Correo = usuario.Correo,
-            Telefono = usuario.Telefono
+            UsuarioId = user.Id,
+            Nombre = nombreRes,
+            Apellido = apellidoRes,
+            Correo = user.Email,
+            Telefono = user.Telefono
         };
     }
 }
