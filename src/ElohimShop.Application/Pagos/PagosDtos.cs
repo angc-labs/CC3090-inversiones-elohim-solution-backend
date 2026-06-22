@@ -3,6 +3,7 @@ namespace ElohimShop.Application.Pagos;
 public class CrearPaymentIntentDto
 {
     public string ReservacionId { get; set; } = string.Empty;
+    public string? MetodoPagoId { get; set; }
 }
 
 public class PaymentIntentCreadoDto

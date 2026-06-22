@@ -2,8 +2,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using ElohimShop.Application.Pagos;
 using ElohimShop.Infrastructure.Pagos;
+using ElohimShop.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace ElohimShop.API.Controllers;
@@ -11,9 +13,10 @@ namespace ElohimShop.API.Controllers;
 [ApiController]
 [Route("api/metodoPago")]
 [Authorize]
-public class MetodoPagoController : ControllerBase
+public class MetodoPagoController : V1ControllerBase
 {
     private readonly IMetodosPagoUsuarioService _metodosPago;
+    private readonly PlatformDbContext _platformDb;
     private readonly StripePaymentOptions _stripeOptions;
 
     /// <summary>Con MapInboundClaims=false el subject viene como <c>sub</c>, no como NameIdentifier.</summary>
@@ -23,27 +26,39 @@ public class MetodoPagoController : ControllerBase
 
     public MetodoPagoController(
         IMetodosPagoUsuarioService metodosPago,
+        PlatformDbContext platformDb,
         IOptions<StripePaymentOptions> stripeOptions)
     {
         _metodosPago = metodosPago;
+        _platformDb = platformDb;
         _stripeOptions = stripeOptions.Value;
     }
 
-    /// <summary>Clave publicable y moneda para Stripe.js (cliente autenticado).</summary>
+    /// <summary>Clave publicable y moneda para Stripe.js (usuario autenticado).</summary>
     [HttpGet("config-stripe")]
     [ProducesResponseType(typeof(ConfigStripeClienteDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(object), StatusCodes.Status503ServiceUnavailable)]
     public ActionResult<ConfigStripeClienteDto> ConfigStripe()
     {
-        var tipo = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
-        if (tipo != "cliente")
+        var tenantId = GetTenantId();
+        string? publishableKey = null;
+
+        if (!string.IsNullOrEmpty(tenantId))
         {
-            return Forbid();
+            var creds = _platformDb.CredencialesIntegraciones
+                .AsNoTracking()
+                .FirstOrDefault(x => x.TiendaId == tenantId);
+            if (creds != null && !string.IsNullOrEmpty(creds.StripePublicKey))
+            {
+                publishableKey = creds.StripePublicKey.Trim();
+            }
         }
 
-        var publishableKey = Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY")?.Trim()
-            ?? _stripeOptions.PublishableKey?.Trim();
+        if (string.IsNullOrEmpty(publishableKey))
+        {
+            publishableKey = Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY")?.Trim()
+                ?? _stripeOptions.PublishableKey?.Trim();
+        }
 
         if (string.IsNullOrEmpty(publishableKey))
         {

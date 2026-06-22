@@ -1,4 +1,5 @@
 using ElohimShop.Application.Pagos;
+using ElohimShop.Domain.Entities;
 using ElohimShop.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -9,11 +10,19 @@ namespace ElohimShop.Infrastructure.Pagos;
 public class StripePagosService : IPagosService
 {
     private readonly ElohimShopDbContext _db;
+    private readonly PlatformDbContext _platformDb;
+    private readonly ITenantProvider _tenantProvider;
     private readonly StripePaymentOptions _options;
 
-    public StripePagosService(ElohimShopDbContext db, IOptions<StripePaymentOptions> options)
+    public StripePagosService(
+        ElohimShopDbContext db,
+        PlatformDbContext platformDb,
+        ITenantProvider tenantProvider,
+        IOptions<StripePaymentOptions> options)
     {
         _db = db;
+        _platformDb = platformDb;
+        _tenantProvider = tenantProvider;
         _options = options.Value;
     }
 
@@ -24,30 +33,77 @@ public class StripePagosService : IPagosService
     {
         AplicarApiKey();
 
-        var reservacion = await _db.Reservaciones
-            .Include(r => r.MetodoPago)
-            .FirstOrDefaultAsync(r => r.IdReservacion == dto.ReservacionId, ct)
+        var platformReservacion = await _platformDb.Reservaciones
+            .FirstOrDefaultAsync(r => r.Id == dto.ReservacionId, ct)
             .ConfigureAwait(false);
 
-        if (reservacion is null || reservacion.Pagado || reservacion.ClienteId != usuarioIdCliente)
+        decimal total = 0;
+        string? clienteId = null;
+
+        if (platformReservacion != null)
         {
-            throw new InvalidOperationException("La reservación ya fue pagada o no existe.");
+            if (platformReservacion.EstadoPago == "pagado")
+            {
+                throw new InvalidOperationException("La reservación ya fue pagada.");
+            }
+            if (platformReservacion.UsuarioId != usuarioIdCliente)
+            {
+                throw new InvalidOperationException("La reservación no pertenece al usuario.");
+            }
+
+            total = platformReservacion.MontoTotal;
+            clienteId = platformReservacion.UsuarioId;
+        }
+        else
+        {
+            try
+            {
+                var reservacion = await _db.Reservaciones
+                    .FirstOrDefaultAsync(r => r.IdReservacion == dto.ReservacionId, ct)
+                    .ConfigureAwait(false);
+
+                if (reservacion is null || reservacion.Pagado || reservacion.ClienteId != usuarioIdCliente)
+                {
+                    throw new InvalidOperationException("La reservación ya fue pagada o no existe.");
+                }
+
+                total = reservacion.TotalRenovacion ?? 0;
+                clienteId = reservacion.ClienteId;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("La reservación no existe o no se pudo cargar.", ex);
+            }
         }
 
-        var metodo = reservacion.MetodoPago;
-        if (metodo is null || string.IsNullOrWhiteSpace(metodo.StripePaymentMethodId))
-        {
-            throw new InvalidOperationException("La reservación requiere un método de pago Stripe guardado.");
-        }
-
-        var total = reservacion.TotalRenovacion ?? 0;
         if (total <= 0)
         {
             throw new InvalidOperationException("El monto de la reservación no es válido.");
         }
 
-        var usuario = await _db.Usuarios
-            .FirstOrDefaultAsync(u => u.Id == reservacion.ClienteId, ct)
+        MetodoPago? metodo = null;
+        if (!string.IsNullOrWhiteSpace(dto.MetodoPagoId))
+        {
+            metodo = await _db.MetodosPago
+                .FirstOrDefaultAsync(m => m.IdMetodoPago == dto.MetodoPagoId && m.UsuarioId == usuarioIdCliente, ct)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            metodo = await _db.MetodosPago
+                .Where(m => m.UsuarioId == usuarioIdCliente && m.Activo && m.StripePaymentMethodId != null)
+                .OrderByDescending(m => m.IdMetodoPago)
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+        }
+
+        if (metodo is null || string.IsNullOrWhiteSpace(metodo.StripePaymentMethodId))
+        {
+            throw new InvalidOperationException("No se encontró un método de pago Stripe guardado válido para este usuario.");
+        }
+
+        var usuario = await _platformDb.Users
+            .FirstOrDefaultAsync(u => u.Id == clienteId, ct)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException("Cliente no encontrado.");
 
@@ -57,13 +113,13 @@ public class StripePagosService : IPagosService
             var customer = await customerService.CreateAsync(
                 new CustomerCreateOptions
                 {
-                    Email = usuario.Correo,
+                    Email = usuario.Email,
                     Metadata = new Dictionary<string, string> { ["usuario_id"] = usuario.Id }
                 },
                 cancellationToken: ct).ConfigureAwait(false);
 
-            usuario.AsignarStripeCustomerId(customer.Id);
-            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+            usuario.StripeCustomerId = customer.Id;
+            await _platformDb.SaveChangesAsync(ct).ConfigureAwait(false);
         }
 
         var moneda = (Environment.GetEnvironmentVariable("STRIPE_DEFAULT_CURRENCY")?.Trim()
@@ -78,7 +134,9 @@ public class StripePagosService : IPagosService
             Currency = moneda,
             Customer = usuario.StripeCustomerId,
             PaymentMethod = metodo.StripePaymentMethodId,
-            Metadata = new Dictionary<string, string> { ["reservacion_id"] = reservacion.IdReservacion },
+            Confirm = true,
+            OffSession = false,
+            Metadata = new Dictionary<string, string> { ["reservacion_id"] = dto.ReservacionId },
             AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
             {
                 Enabled = true,
@@ -88,8 +146,36 @@ public class StripePagosService : IPagosService
 
         var paymentIntent = await paymentIntentService.CreateAsync(options, cancellationToken: ct).ConfigureAwait(false);
 
-        reservacion.AsignarStripePaymentIntent(paymentIntent.Id);
-        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        if (platformReservacion != null)
+        {
+            platformReservacion.StripeIntentId = paymentIntent.Id;
+            if (paymentIntent.Status == "succeeded")
+            {
+                platformReservacion.EstadoPago = "pagado";
+            }
+            await _platformDb.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        else
+        {
+            try
+            {
+                var reservacion = await _db.Reservaciones
+                    .FirstOrDefaultAsync(r => r.IdReservacion == dto.ReservacionId, ct)
+                    .ConfigureAwait(false);
+                if (reservacion != null)
+                {
+                    reservacion.AsignarStripePaymentIntent(paymentIntent.Id);
+                    if (paymentIntent.Status == "succeeded")
+                    {
+                        reservacion.MarcarComoPagada();
+                    }
+                    await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
 
         var clientSecret = paymentIntent.ClientSecret
             ?? throw new InvalidOperationException("Stripe no devolvió clientSecret.");
@@ -97,7 +183,7 @@ public class StripePagosService : IPagosService
         return new PaymentIntentCreadoDto
         {
             ClientSecret = clientSecret,
-            ReservacionId = reservacion.IdReservacion,
+            ReservacionId = dto.ReservacionId,
             MontoCentavos = montoCentavos,
             Moneda = moneda
         };
@@ -127,37 +213,99 @@ public class StripePagosService : IPagosService
             return null;
         }
 
-        var reservacion = await _db.Reservaciones
+        var platformReservacion = await _platformDb.Reservaciones
             .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.IdReservacion == rid, ct)
+            .FirstOrDefaultAsync(r => r.Id == rid, ct)
             .ConfigureAwait(false);
 
-        if (reservacion is null)
+        if (platformReservacion != null)
+        {
+            if (!esAdministrador && platformReservacion.UsuarioId != clienteId)
+            {
+                throw new UnauthorizedAccessException("No tenés permisos para consultar este pago.");
+            }
+
+            await SincronizarPagadoConStripePlatformAsync(rid, pi.Id, pi.Status, ct).ConfigureAwait(false);
+
+            return new PagoEstadoDto
+            {
+                PaymentIntentId = pi.Id,
+                Status = MapearEstadoParaApi(pi.Status),
+                ReservacionId = rid,
+                MontoCentavos = pi.Amount,
+                Moneda = pi.Currency
+            };
+        }
+
+        try
+        {
+            var reservacion = await _db.Reservaciones
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.IdReservacion == rid, ct)
+                .ConfigureAwait(false);
+
+            if (reservacion is null)
+            {
+                return null;
+            }
+
+            if (!esAdministrador && reservacion.ClienteId != clienteId)
+            {
+                throw new UnauthorizedAccessException("No tenés permisos para consultar este pago.");
+            }
+
+            await SincronizarPagadoConStripeAsync(rid, pi.Id, pi.Status, ct).ConfigureAwait(false);
+
+            return new PagoEstadoDto
+            {
+                PaymentIntentId = pi.Id,
+                Status = MapearEstadoParaApi(pi.Status),
+                ReservacionId = rid,
+                MontoCentavos = pi.Amount,
+                Moneda = pi.Currency
+            };
+        }
+        catch (Exception)
         {
             return null;
         }
-
-        if (!esAdministrador && reservacion.ClienteId != clienteId)
-        {
-            throw new UnauthorizedAccessException("No tenés permisos para consultar este pago.");
-        }
-
-        await SincronizarPagadoConStripeAsync(rid, pi.Id, pi.Status, ct).ConfigureAwait(false);
-
-        return new PagoEstadoDto
-        {
-            PaymentIntentId = pi.Id,
-            Status = MapearEstadoParaApi(pi.Status),
-            ReservacionId = rid,
-            MontoCentavos = pi.Amount,
-            Moneda = pi.Currency
-        };
     }
 
-    /// <summary>
-    /// Si Stripe ya cobró pero el webhook aún no actualizó la BD (desarrollo local, retraso, etc.),
-    /// marca la reservación como pagada al consultar el estado.
-    /// </summary>
+    private async Task SincronizarPagadoConStripePlatformAsync(
+        string reservacionId,
+        string paymentIntentId,
+        string stripeStatus,
+        CancellationToken ct)
+    {
+        if (!string.Equals(stripeStatus, "succeeded", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var entity = await _platformDb.Reservaciones
+            .FirstOrDefaultAsync(r => r.Id == reservacionId, ct)
+            .ConfigureAwait(false);
+
+        if (entity is null || entity.EstadoPago == "pagado")
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(entity.StripeIntentId) &&
+            !string.Equals(entity.StripeIntentId, paymentIntentId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(entity.StripeIntentId))
+        {
+            entity.StripeIntentId = paymentIntentId;
+        }
+
+        entity.EstadoPago = "pagado";
+        await _platformDb.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
     private async Task SincronizarPagadoConStripeAsync(
         string reservacionId,
         string paymentIntentId,
@@ -248,8 +396,25 @@ public class StripePagosService : IPagosService
 
     private void AplicarApiKey()
     {
-        var key = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")?.Trim()
-            ?? _options.SecretKey?.Trim();
+        var tenantId = _tenantProvider.GetTenantId();
+        string? key = null;
+
+        if (!string.IsNullOrEmpty(tenantId))
+        {
+            var creds = _platformDb.CredencialesIntegraciones
+                .AsNoTracking()
+                .FirstOrDefault(x => x.TiendaId == tenantId);
+            if (creds != null && !string.IsNullOrEmpty(creds.StripeSecretKey))
+            {
+                key = creds.StripeSecretKey.Trim();
+            }
+        }
+
+        if (string.IsNullOrEmpty(key))
+        {
+            key = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")?.Trim()
+                ?? _options.SecretKey?.Trim();
+        }
 
         if (string.IsNullOrEmpty(key))
         {

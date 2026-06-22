@@ -10,11 +10,19 @@ namespace ElohimShop.Infrastructure.Pagos;
 public class MetodosPagoUsuarioService : IMetodosPagoUsuarioService
 {
     private readonly ElohimShopDbContext _db;
+    private readonly PlatformDbContext _platformDb;
+    private readonly ITenantProvider _tenantProvider;
     private readonly IOptions<StripePaymentOptions> _options;
 
-    public MetodosPagoUsuarioService(ElohimShopDbContext db, IOptions<StripePaymentOptions> options)
+    public MetodosPagoUsuarioService(
+        ElohimShopDbContext db,
+        PlatformDbContext platformDb,
+        ITenantProvider tenantProvider,
+        IOptions<StripePaymentOptions> options)
     {
         _db = db;
+        _platformDb = platformDb;
+        _tenantProvider = tenantProvider;
         _options = options;
     }
 
@@ -76,7 +84,7 @@ public class MetodosPagoUsuarioService : IMetodosPagoUsuarioService
             throw new InvalidOperationException("Este método de pago ya está guardado.");
         }
 
-        var usuario = await _db.Usuarios.FirstOrDefaultAsync(u => u.Id == usuarioId, ct).ConfigureAwait(false)
+        var usuario = await _platformDb.Users.FirstOrDefaultAsync(u => u.Id == usuarioId, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Usuario no encontrado.");
 
         AplicarApiKey();
@@ -87,13 +95,13 @@ public class MetodosPagoUsuarioService : IMetodosPagoUsuarioService
             var customer = await customerService.CreateAsync(
                 new CustomerCreateOptions
                 {
-                    Email = usuario.Correo,
+                    Email = usuario.Email,
                     Metadata = new Dictionary<string, string> { ["usuario_id"] = usuario.Id }
                 },
                 cancellationToken: ct).ConfigureAwait(false);
 
-            usuario.AsignarStripeCustomerId(customer.Id);
-            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+            usuario.StripeCustomerId = customer.Id;
+            await _platformDb.SaveChangesAsync(ct).ConfigureAwait(false);
         }
 
         var paymentMethodService = new PaymentMethodService();
@@ -187,9 +195,26 @@ public class MetodosPagoUsuarioService : IMetodosPagoUsuarioService
 
     private void AplicarApiKey()
     {
-        var opts = _options.Value;
-        var key = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")?.Trim()
-            ?? opts.SecretKey?.Trim();
+        var tenantId = _tenantProvider.GetTenantId();
+        string? key = null;
+
+        if (!string.IsNullOrEmpty(tenantId))
+        {
+            var creds = _platformDb.CredencialesIntegraciones
+                .AsNoTracking()
+                .FirstOrDefault(x => x.TiendaId == tenantId);
+            if (creds != null && !string.IsNullOrEmpty(creds.StripeSecretKey))
+            {
+                key = creds.StripeSecretKey.Trim();
+            }
+        }
+
+        if (string.IsNullOrEmpty(key))
+        {
+            var opts = _options.Value;
+            key = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")?.Trim()
+                ?? opts.SecretKey?.Trim();
+        }
 
         if (string.IsNullOrEmpty(key))
         {

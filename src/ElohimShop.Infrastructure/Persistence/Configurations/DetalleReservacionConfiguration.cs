@@ -8,7 +8,7 @@ public class DetalleReservacionConfiguration : IEntityTypeConfiguration<DetalleR
 {
     public void Configure(EntityTypeBuilder<DetalleReservacion> builder)
     {
-        builder.ToTable("DetalleReservacion");
+        builder.ToTable("DetalleReservacionStore");
 
         builder.HasKey(dr => dr.IdDetails);
 
