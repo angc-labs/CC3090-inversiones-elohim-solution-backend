@@ -50,6 +50,18 @@ public class ProductosV1Controller : V1ControllerBase
         return StatusCode(StatusCodes.Status201Created, producto);
     }
 
+    [HttpPost("bulk")]
+    public async Task<IActionResult> CrearBulk([FromBody] IReadOnlyCollection<CrearProductoBulkInput> requests, CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null)
+        {
+            return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        }
+
+        var productos = await _platformService.CrearProductosBulkAsync(requests, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, productos);
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Actualizar(string id, [FromBody] ActualizarProductoRequest request, CancellationToken cancellationToken)
     {

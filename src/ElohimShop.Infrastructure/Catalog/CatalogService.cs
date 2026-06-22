@@ -1,7 +1,8 @@
 using ElohimShop.Application.Catalog;
-using ElohimShop.Domain.Entities;
 using ElohimShop.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace ElohimShop.Infrastructure.Catalog;
 
@@ -44,38 +45,40 @@ public class CatalogService : ICatalogService
         "https://walmartgt.vtexassets.com/arquivos/ids/653805/7709_01.jpg?v=638658209672500000"
     ];
 
-    private readonly ElohimShopDbContext _dbContext;
+    private readonly PlatformDbContext _dbContext;
+    private readonly ITenantProvider _tenantProvider;
 
-    public CatalogService(ElohimShopDbContext dbContext)
+    public CatalogService(PlatformDbContext dbContext, ITenantProvider tenantProvider)
     {
         _dbContext = dbContext;
+        _tenantProvider = tenantProvider;
     }
 
-    public async Task<IReadOnlyList<MarcaDto>> ObtenerMarcasAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<MarcaDto>> ObtenerMarcasAsync(CancellationToken cancellationToken)
     {
-        return await _dbContext.Marcas
-            .AsNoTracking()
-            .OrderBy(m => m.NombreMarca)
-            .Select(m => new MarcaDto
-            {
-                Id = m.Id,
-                NombreMarca = m.NombreMarca,
-                Descripcion = m.Descripcion
-            })
-            .ToListAsync(cancellationToken);
+        // El nuevo modelo PlatformDbContext no tiene la tabla Marcas. Retornamos marcas simuladas.
+        IReadOnlyList<MarcaDto> marcas = MarcasSeed.Select(m => new MarcaDto
+        {
+            Id = m.Nombre.ToLowerInvariant(),
+            NombreMarca = m.Nombre,
+            Descripcion = m.Descripcion
+        }).ToList();
+
+        return Task.FromResult(marcas);
     }
 
     public async Task<IReadOnlyList<CategoriaDto>> ObtenerCategoriasAsync(CancellationToken cancellationToken)
     {
+        // Consultar categorías de la tienda activa inyectada por ITenantProvider
         return await _dbContext.Categorias
             .AsNoTracking()
-            .OrderBy(c => c.NombreCategoria)
+            .OrderBy(c => c.Nombre)
             .Select(c => new CategoriaDto
             {
                 Id = c.Id,
-                NombreCategoria = c.NombreCategoria,
+                NombreCategoria = c.Nombre,
                 Descripcion = c.Descripcion,
-                FechaCreacion = c.FechaCreacion
+                FechaCreacion = DateTime.UtcNow // Valor mock
             })
             .ToListAsync(cancellationToken);
     }
@@ -94,11 +97,6 @@ public class CatalogService : ICatalogService
             query = query.Where(p => p.CategoriaId == categoriaId);
         }
 
-        if (!string.IsNullOrWhiteSpace(marcaId))
-        {
-            query = query.Where(p => p.IdMarca == marcaId);
-        }
-
         var total = await query.CountAsync(cancellationToken);
 
         var productos = await query
@@ -107,16 +105,16 @@ public class CatalogService : ICatalogService
             .Take(limite)
             .Select(p => new ProductoListadoDto
             {
-                IdProducto = p.IdProducto,
-                CodigoProducto = p.CodigoProducto,
-                NombreProducto = p.NombreProducto,
+                IdProducto = p.Id,
+                CodigoProducto = p.Sku ?? string.Empty,
+                NombreProducto = p.Nombre,
                 Descripcion = p.Descripcion,
-                Precio = p.Precio,
-                StockActual = p.StockActual,
-                IdMarca = p.IdMarca,
+                Precio = (int)p.PrecioDetalle,
+                StockActual = p.Inventarios.Sum(i => i.Stock),
+                IdMarca = "marca-demo",
                 CategoriaId = p.CategoriaId,
-                ImagenPrincipal = p.ImagenPrincipal,
-                FechaVencimiento = p.FechaVencimiento
+                ImagenPrincipal = p.ImagenUrl,
+                FechaVencimiento = DateTime.UtcNow.AddYears(1)
             })
             .ToListAsync(cancellationToken);
 
@@ -133,27 +131,31 @@ public class CatalogService : ICatalogService
     {
         var producto = await _dbContext.Productos
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.IdProducto == id, cancellationToken);
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
         if (producto is null)
         {
             return null;
         }
 
+        var stockActual = await _dbContext.Inventarios
+            .Where(i => i.ProductoId == producto.Id)
+            .SumAsync(i => i.Stock, cancellationToken);
+
         return new ProductoDetalleDto
         {
-            IdProducto = producto.IdProducto,
-            CodigoProducto = producto.CodigoProducto,
-            NombreProducto = producto.NombreProducto,
+            IdProducto = producto.Id,
+            CodigoProducto = producto.Sku ?? string.Empty,
+            NombreProducto = producto.Nombre,
             Descripcion = producto.Descripcion,
-            Precio = producto.Precio,
-            StockActual = producto.StockActual,
-            IdMarca = producto.IdMarca,
+            Precio = (int)producto.PrecioDetalle,
+            StockActual = stockActual,
+            IdMarca = "marca-demo",
             CategoriaId = producto.CategoriaId,
-            ImagenPrincipal = producto.ImagenPrincipal,
-            FechaVencimiento = producto.FechaVencimiento,
+            ImagenPrincipal = producto.ImagenUrl,
+            FechaVencimiento = DateTime.UtcNow.AddYears(1),
             FechaCreacion = producto.FechaCreacion,
-            FechaActualizacion = producto.FechaActualizacion
+            FechaActualizacion = producto.FechaCreacion
         };
     }
 
@@ -163,15 +165,15 @@ public class CatalogService : ICatalogService
 
         var resultados = await _dbContext.Productos
             .AsNoTracking()
-            .Where(p => p.NombreProducto.ToLower().Contains(normalizedQuery))
-            .OrderBy(p => p.NombreProducto)
+            .Where(p => p.Nombre.ToLower().Contains(normalizedQuery))
+            .OrderBy(p => p.Nombre)
             .Take(20)
             .Select(p => new ProductoBusquedaDto
             {
-                IdProducto = p.IdProducto,
-                NombreProducto = p.NombreProducto,
-                Precio = p.Precio,
-                ImagenPrincipal = p.ImagenPrincipal
+                IdProducto = p.Id,
+                NombreProducto = p.Nombre,
+                Precio = (int)p.PrecioDetalle,
+                ImagenPrincipal = p.ImagenUrl
             })
             .ToListAsync(cancellationToken);
 
@@ -189,48 +191,40 @@ public class CatalogService : ICatalogService
             throw new ArgumentOutOfRangeException(nameof(cantidadProductos), "La cantidad de productos debe ser mayor a 0.");
         }
 
+        var tenantId = _tenantProvider.GetTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            var primeraTienda = await _dbContext.Tiendas.FirstOrDefaultAsync(cancellationToken);
+            tenantId = primeraTienda?.Id ?? "seed-tienda-default-id";
+        }
+
         var categoriasObjetivo = CategoriasSeed.Select(c => c.Nombre).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var marcasObjetivo = MarcasSeed.Select(m => m.Nombre).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var categoriasExistentes = await _dbContext.Categorias
-            .Where(c => categoriasObjetivo.Contains(c.NombreCategoria))
-            .ToListAsync(cancellationToken);
-
-        var marcasExistentes = await _dbContext.Marcas
-            .Where(m => marcasObjetivo.Contains(m.NombreMarca))
+            .Where(c => categoriasObjetivo.Contains(c.Nombre))
             .ToListAsync(cancellationToken);
 
         var categoriasNuevas = CategoriasSeed
-            .Where(seed => categoriasExistentes.All(c => !string.Equals(c.NombreCategoria, seed.Nombre, StringComparison.OrdinalIgnoreCase)))
-            .Select(seed => Categoria.Crear(seed.Nombre, seed.Descripcion))
-            .ToList();
-
-        var marcasNuevas = MarcasSeed
-            .Where(seed => marcasExistentes.All(m => !string.Equals(m.NombreMarca, seed.Nombre, StringComparison.OrdinalIgnoreCase)))
-            .Select(seed => Marca.Crear(seed.Nombre, seed.Descripcion))
+            .Where(seed => categoriasExistentes.All(c => !string.Equals(c.Nombre, seed.Nombre, StringComparison.OrdinalIgnoreCase)))
+            .Select(seed => new ElohimShop.Domain.Platform.Categoria
+            {
+                Id = Guid.NewGuid().ToString(),
+                TiendaId = tenantId,
+                Nombre = seed.Nombre,
+                Descripcion = seed.Descripcion,
+                Slug = seed.Nombre.ToLowerInvariant(),
+                ImagenUrl = string.Empty
+            })
             .ToList();
 
         if (categoriasNuevas.Count > 0)
         {
             _dbContext.Categorias.AddRange(categoriasNuevas);
-        }
-
-        if (marcasNuevas.Count > 0)
-        {
-            _dbContext.Marcas.AddRange(marcasNuevas);
-        }
-
-        if (categoriasNuevas.Count > 0 || marcasNuevas.Count > 0)
-        {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
         var categorias = await _dbContext.Categorias
-            .Where(c => categoriasObjetivo.Contains(c.NombreCategoria))
-            .ToListAsync(cancellationToken);
-
-        var marcas = await _dbContext.Marcas
-            .Where(m => marcasObjetivo.Contains(m.NombreMarca))
+            .Where(c => categoriasObjetivo.Contains(c.Nombre))
             .ToListAsync(cancellationToken);
 
         var codigosObjetivo = Enumerable.Range(1, cantidadProductos)
@@ -238,12 +232,14 @@ public class CatalogService : ICatalogService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var codigosExistentes = await _dbContext.Productos
-            .Where(p => codigosObjetivo.Contains(p.CodigoProducto))
-            .Select(p => p.CodigoProducto)
+            .Where(p => codigosObjetivo.Contains(p.Sku))
+            .Select(p => p.Sku)
             .ToListAsync(cancellationToken);
 
         var codigosExistentesSet = codigosExistentes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var productosNuevos = new List<Producto>(cantidadProductos);
+        var productosNuevos = new List<ElohimShop.Domain.Platform.Producto>(cantidadProductos);
+
+        var sucursal = await _dbContext.Sucursales.FirstOrDefaultAsync(s => s.TiendaId == tenantId, cancellationToken);
 
         for (var i = 1; i <= cantidadProductos; i++)
         {
@@ -254,21 +250,38 @@ public class CatalogService : ICatalogService
             }
 
             var categoria = categorias[(i - 1) % categorias.Count];
-            var marca = marcas[(i - 1) % marcas.Count];
             var imagenPrincipal = ImagenesPrincipalSeed[(i - 1) % ImagenesPrincipalSeed.Length];
 
-            var producto = Producto.Crear(
-                codigo,
-                $"Producto Seed {i:000}",
-                50 + (i * 10),
-                10 + (i % 25),
-                descripcion: $"Producto autogenerado para seed {i:000}.",
-                idMarca: marca.Id,
-                categoriaId: categoria.Id,
-                fechaVencimiento: DateTime.UtcNow.AddMonths(12 + (i % 6)),
-                imagenPrincipal: imagenPrincipal);
+            var producto = new ElohimShop.Domain.Platform.Producto
+            {
+                Id = Guid.NewGuid().ToString(),
+                TiendaId = tenantId,
+                CategoriaId = categoria.Id,
+                Nombre = $"Producto Seed {i:000}",
+                Descripcion = $"Producto autogenerado para seed {i:000}.",
+                Sku = codigo,
+                PrecioMayoreo = 50 + (i * 10),
+                PrecioDetalle = 50 + (i * 10),
+                ImagenUrl = imagenPrincipal,
+                Publicado = true,
+                FechaCreacion = DateTime.UtcNow,
+                Eliminado = false
+            };
 
             productosNuevos.Add(producto);
+
+            if (sucursal is not null)
+            {
+                var inventario = new ElohimShop.Domain.Platform.Inventario
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    TiendaId = tenantId,
+                    SucursalId = sucursal.Id,
+                    ProductoId = producto.Id,
+                    Stock = 10 + (i % 25)
+                };
+                _dbContext.Inventarios.Add(inventario);
+            }
         }
 
         if (productosNuevos.Count > 0)
@@ -280,7 +293,7 @@ public class CatalogService : ICatalogService
         return new SeedCatalogoResultadoDto(
             cantidadProductos,
             categoriasNuevas.Count,
-            marcasNuevas.Count,
+            0, // marcasNuevas
             productosNuevos.Count,
             cantidadProductos - productosNuevos.Count);
     }
