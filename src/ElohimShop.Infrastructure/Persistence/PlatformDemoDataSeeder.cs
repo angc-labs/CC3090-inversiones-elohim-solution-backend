@@ -35,8 +35,8 @@ public static class PlatformDemoDataSeeder
             tienda = new Tienda
             {
                 Id = "7a2a29c5-393e-43e8-afb5-8363b95ef07e",
-                Nombre = "Inversiones Elohim",
-                Slug = "elohim",
+                Nombre = "DM Hub",
+                Slug = "dmhub",
                 Estado = "activo",
                 ConfiguracionVisual = "{}",
                 FechaCreacion = DateTime.UtcNow
@@ -163,14 +163,14 @@ public static class PlatformDemoDataSeeder
     {
         // Find or create a client user
         var cliente = await dbContext.Users.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.Email == "cliente.demo@elohim.gt" && u.TiendaId == tiendaId, cancellationToken);
+            .FirstOrDefaultAsync(u => u.Email == "cliente.demo@dmhub.gt" && u.TiendaId == tiendaId, cancellationToken);
         if (cliente == null)
         {
             cliente = new PlatformUser
             {
                 Id = Guid.NewGuid().ToString(),
                 Name = "Cliente Demo",
-                Email = "cliente.demo@elohim.gt",
+                Email = "cliente.demo@dmhub.gt",
                 EmailVerified = true,
                 TiendaId = tiendaId,
                 TipoUsuario = "cliente",

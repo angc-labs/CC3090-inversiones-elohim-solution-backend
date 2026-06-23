@@ -164,8 +164,8 @@ El backend contiene un flujo de arranque automático que se ejecuta al iniciar l
    Si no existe ningún superadministrador en la base de datos, lee las credenciales del archivo de configuración (o variables de entorno `SUPER_ADMIN_EMAIL` y `SUPER_ADMIN_PASSWORD`) y crea el usuario inicial con rol `superadmin`.
 4. **Demo Data Seeders (PlatformDemoDataSeeder & DemoDataSeeder)**:
    Si la variable de entorno `SEED_DATA=true` está configurada, el sistema inyectará registros de prueba automatizados para verificar el funcionamiento de la plataforma:
-   * Instancias de tienda demo (`esmira`, `logistics`, etc.).
+   * Instancias de tienda demo (`dmhub`, `logistics`, etc.).
    * Sucursales por tienda.
    * Categorías y productos representativos con stock e imágenes.
-   * Cuentas de usuarios de staff y clientes demo (`cajero.demo@elohim.gt`, `cliente.demo@elohim.gt`, contraseña común `Demo123!`).
+   * Cuentas de usuarios de staff y clientes demo (`carlos.demo@dmhub.gt`, `cliente.demo@dmhub.gt`, contraseña común `Demo123!`).
    * Reservaciones, ventas e inventarios iniciales para poblar los gráficos del dashboard.

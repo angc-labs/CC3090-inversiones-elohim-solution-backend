@@ -8,7 +8,7 @@ namespace ElohimShop.Infrastructure.Persistence;
 
 public static class SuperAdminSeeder
 {
-    private const string DefaultEmail = "superadmin@elohim.gt";
+    private const string DefaultEmail = "superadmin@dmhub.gt";
     private const string DefaultNombre = "Super Admin";
     private const string DefaultPassword = "SuperAdmin123!";
     private const string AdminRol = "administrador";

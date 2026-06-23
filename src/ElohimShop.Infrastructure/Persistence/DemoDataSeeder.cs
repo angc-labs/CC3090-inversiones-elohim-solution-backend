@@ -33,7 +33,7 @@ public static class DemoDataSeeder
 
         logger.LogInformation("Cargando datos de demostración para reportes...");
 
-        var marca = Marca.Crear("Elohim");
+        var marca = Marca.Crear("DM Hub");
         var categoria = Categoria.Crear("Lácteos");
         dbContext.Marcas.Add(marca);
         dbContext.Categorias.Add(categoria);
@@ -42,7 +42,7 @@ public static class DemoDataSeeder
         dbContext.Productos.AddRange(productos);
 
         var cliente = Usuario.CrearCliente(
-            "cliente.demo@elohim.gt",
+            "cliente.demo@dmhub.gt",
             "Cliente Demo",
             PasswordHashing.Hash(DemoPassword),
             "particular");
@@ -50,10 +50,10 @@ public static class DemoDataSeeder
 
         var cajeros = new[]
         {
-            Usuario.CrearAdministrador("carlos.demo@elohim.gt", "Carlos", PasswordHashing.Hash(DemoPassword), "cajero", "Ruiz"),
-            Usuario.CrearAdministrador("ana.demo@elohim.gt", "Ana", PasswordHashing.Hash(DemoPassword), "cajero", "López"),
-            Usuario.CrearAdministrador("maria.demo@elohim.gt", "María", PasswordHashing.Hash(DemoPassword), "cajero", "Soto"),
-            Usuario.CrearAdministrador("pedro.demo@elohim.gt", "Pedro", PasswordHashing.Hash(DemoPassword), "cajero", "Martínez")
+            Usuario.CrearAdministrador("carlos.demo@dmhub.gt", "Carlos", PasswordHashing.Hash(DemoPassword), "cajero", "Ruiz"),
+            Usuario.CrearAdministrador("ana.demo@dmhub.gt", "Ana", PasswordHashing.Hash(DemoPassword), "cajero", "López"),
+            Usuario.CrearAdministrador("maria.demo@dmhub.gt", "María", PasswordHashing.Hash(DemoPassword), "cajero", "Soto"),
+            Usuario.CrearAdministrador("pedro.demo@dmhub.gt", "Pedro", PasswordHashing.Hash(DemoPassword), "cajero", "Martínez")
         };
         dbContext.Usuarios.AddRange(cajeros);
 

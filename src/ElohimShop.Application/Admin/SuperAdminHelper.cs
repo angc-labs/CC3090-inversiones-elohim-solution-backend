@@ -2,7 +2,7 @@ namespace ElohimShop.Application.Admin;
 
 public static class SuperAdminHelper
 {
-    private const string DefaultEmail = "superadmin@elohim.gt";
+    private const string DefaultEmail = "superadmin@dmhub.gt";
 
     public static string ResolveEmail(string? configEmail = null)
     {
