@@ -45,16 +45,68 @@ public static class PlatformDemoDataSeeder
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        // Check environment configuration for SEED_USER_EMAIL and SEED_USER_PASSWORD
+        var seedUserEmail = Environment.GetEnvironmentVariable("SEED_USER_EMAIL")?.Trim();
+        var seedUserPassword = Environment.GetEnvironmentVariable("SEED_USER_PASSWORD")?.Trim();
+        
+        string targetTiendaId = tienda.Id;
+
+        if (!string.IsNullOrEmpty(seedUserEmail))
+        {
+            var seedUser = await dbContext.Users.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Email == seedUserEmail, cancellationToken);
+
+            if (seedUser == null)
+            {
+                logger.LogInformation("Creando usuario seed ({Email}) en PlatformDbContext...", seedUserEmail);
+                seedUser = new PlatformUser
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "Administrador Seed",
+                    Email = seedUserEmail,
+                    EmailVerified = true,
+                    TiendaId = tienda.Id,
+                    TipoUsuario = "staff",
+                    RolStaff = "administrador",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                dbContext.Users.Add(seedUser);
+
+                var seedAccount = new Account
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    UserId = seedUser.Id,
+                    ProviderId = "credential",
+                    AccountId = seedUserEmail,
+                    Password = PasswordHashing.Hash(string.IsNullOrEmpty(seedUserPassword) ? DemoPassword : seedUserPassword),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                dbContext.Accounts.Add(seedAccount);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                logger.LogInformation("Usuario seed ({Email}) creado y enlazado a la tienda ({TiendaId}).", seedUserEmail, tienda.Id);
+            }
+            else if (string.IsNullOrEmpty(seedUser.TiendaId))
+            {
+                seedUser.TiendaId = tienda.Id;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                logger.LogInformation("Usuario seed existente ({Email}) enlazado a la tienda ({TiendaId}).", seedUserEmail, tienda.Id);
+            }
+
+            targetTiendaId = seedUser.TiendaId;
+        }
+
         // Check if there is any Sucursal for this tienda.
         var sucursal = await dbContext.Sucursales.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(s => s.TiendaId == tienda.Id, cancellationToken);
+            .FirstOrDefaultAsync(s => s.TiendaId == targetTiendaId, cancellationToken);
         if (sucursal == null)
         {
-            logger.LogInformation("Creando sucursal demo...");
+            logger.LogInformation("Creando sucursal demo para la tienda {TiendaId}...", targetTiendaId);
             sucursal = new Sucursal
             {
-                Id = "sucursal-demo-id",
-                TiendaId = tienda.Id,
+                Id = "sucursal-demo-" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                TiendaId = targetTiendaId,
                 Nombre = "Sucursal Principal",
                 Direccion = "Avenida Central 12-34, Zona 1",
                 Telefono = "2233-4455",
@@ -66,30 +118,30 @@ public static class PlatformDemoDataSeeder
 
         // Check if products exist for this store
         var existeDemo = await dbContext.Productos.IgnoreQueryFilters()
-            .AnyAsync(p => p.Sku == DemoMarkerSku && p.TiendaId == tienda.Id, cancellationToken);
+            .AnyAsync(p => p.Sku == DemoMarkerSku && p.TiendaId == targetTiendaId, cancellationToken);
 
         if (existeDemo)
         {
             // If demo products already exist, check if we need to seed reservations
             var tieneReservas = await dbContext.Reservaciones.IgnoreQueryFilters()
-                .AnyAsync(r => r.TiendaId == tienda.Id, cancellationToken);
+                .AnyAsync(r => r.TiendaId == targetTiendaId, cancellationToken);
             if (!tieneReservas)
             {
-                logger.LogInformation("La tienda tiene productos pero no reservaciones. Generando datos de reservaciones...");
+                logger.LogInformation("La tienda {TiendaId} tiene productos pero no reservaciones. Generando datos de reservaciones...", targetTiendaId);
                 var productos = await dbContext.Productos.IgnoreQueryFilters()
-                    .Where(p => p.TiendaId == tienda.Id)
+                    .Where(p => p.TiendaId == targetTiendaId)
                     .ToListAsync(cancellationToken);
-                await GenerarReservacionesDemoAsync(dbContext, tienda.Id, sucursal.Id, productos, logger, cancellationToken);
+                await GenerarReservacionesDemoAsync(dbContext, targetTiendaId, sucursal.Id, productos, logger, cancellationToken);
             }
             return;
         }
 
-        logger.LogInformation("Cargando productos de demostración en PlatformDbContext...");
+        logger.LogInformation("Cargando productos de demostración para la tienda {TiendaId} en PlatformDbContext...", targetTiendaId);
 
         var categoria = new Categoria
         {
             Id = Guid.NewGuid().ToString(),
-            TiendaId = tienda.Id,
+            TiendaId = targetTiendaId,
             Nombre = "Lácteos",
             Descripcion = "Productos lácteos y derivados",
             Slug = "lacteos"
@@ -97,7 +149,7 @@ public static class PlatformDemoDataSeeder
         dbContext.Categorias.Add(categoria);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var productosDemo = CrearProductosDemo(tienda.Id, categoria.Id);
+        var productosDemo = CrearProductosDemo(targetTiendaId, categoria.Id);
         dbContext.Productos.AddRange(productosDemo);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -107,7 +159,7 @@ public static class PlatformDemoDataSeeder
             var inv = new Inventario
             {
                 Id = Guid.NewGuid().ToString(),
-                TiendaId = tienda.Id,
+                TiendaId = targetTiendaId,
                 SucursalId = sucursal.Id,
                 ProductoId = prod.Id,
                 Stock = prod.StockActual
@@ -117,7 +169,7 @@ public static class PlatformDemoDataSeeder
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Generate reservations and details
-        await GenerarReservacionesDemoAsync(dbContext, tienda.Id, sucursal.Id, productosDemo, logger, cancellationToken);
+        await GenerarReservacionesDemoAsync(dbContext, targetTiendaId, sucursal.Id, productosDemo, logger, cancellationToken);
     }
 
     private static List<Producto> CrearProductosDemo(string tiendaId, string categoriaId)

@@ -22,6 +22,28 @@ public static class DemoDataSeeder
             return;
         }
 
+        var seedUserEmail = Environment.GetEnvironmentVariable("SEED_USER_EMAIL")?.Trim();
+        var seedUserPassword = Environment.GetEnvironmentVariable("SEED_USER_PASSWORD")?.Trim();
+
+        if (!string.IsNullOrEmpty(seedUserEmail))
+        {
+            var existeAdmin = await dbContext.Usuarios
+                .AsNoTracking()
+                .AnyAsync(u => u.Correo == seedUserEmail, cancellationToken);
+
+            if (!existeAdmin)
+            {
+                logger.LogInformation("Creando usuario administrador seed ({Email}) en ElohimShopDbContext...", seedUserEmail);
+                var adminUser = Usuario.CrearAdministrador(
+                    seedUserEmail,
+                    "Administrador Seed",
+                    PasswordHashing.Hash(string.IsNullOrEmpty(seedUserPassword) ? DemoPassword : seedUserPassword),
+                    "administrador");
+                dbContext.Usuarios.Add(adminUser);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         var existeDemo = await dbContext.Productos
             .AsNoTracking()
             .AnyAsync(p => p.CodigoProducto == DemoMarkerCodigo, cancellationToken);
