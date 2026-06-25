@@ -224,7 +224,21 @@ public class PlatformService : IPlatformService
         }
 
         var timestamp = request.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var payload = $"public_id={request.PublicId}&timestamp={timestamp}&{credenciales.CloudinaryApiSecret}";
+        
+        var parameters = new List<string>
+        {
+            $"public_id={request.PublicId}",
+            $"timestamp={timestamp}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(request.Folder))
+        {
+            parameters.Add($"folder={request.Folder}");
+        }
+
+        parameters.Sort();
+        var payload = string.Join("&", parameters) + credenciales.CloudinaryApiSecret;
+        
         var signatureBytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
 
         return new MediaSignatureResponse(
