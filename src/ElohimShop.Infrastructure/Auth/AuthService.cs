@@ -49,11 +49,11 @@ public class AuthService : IAuthService
         var email = request.Correo.Trim().ToLowerInvariant();
         var correoExistente = await _dbContext.Users
             .IgnoreQueryFilters()
-            .AnyAsync(u => u.Email == email && u.TiendaId == tenantId, cancellationToken);
+            .AnyAsync(u => u.Email == email && (u.TiendaId == tenantId || u.TipoUsuario == "staff" || u.TipoUsuario == "administrador"), cancellationToken);
 
         if (correoExistente)
         {
-            throw new InvalidOperationException("El correo ya está registrado en esta tienda.");
+            throw new InvalidOperationException("El correo ya está registrado en esta tienda o como administrador en la plataforma.");
         }
 
         var hashedPassword = PasswordHashing.Hash(request.Contrasena);
@@ -154,11 +154,11 @@ public class AuthService : IAuthService
         var email = request.Correo.Trim().ToLowerInvariant();
         var correoExistente = await _dbContext.Users
             .IgnoreQueryFilters()
-            .AnyAsync(u => u.Email == email && u.TiendaId == tenantId, cancellationToken);
+            .AnyAsync(u => u.Email == email && (u.TipoUsuario == "staff" || u.TipoUsuario == "administrador" || u.TiendaId == tenantId), cancellationToken);
 
         if (correoExistente)
         {
-            throw new InvalidOperationException("El correo ya está registrado en esta tienda.");
+            throw new InvalidOperationException("El correo ya está registrado como administrador en la plataforma o como usuario en esta tienda.");
         }
 
         var hashedPassword = PasswordHashing.Hash(request.Contrasena);
