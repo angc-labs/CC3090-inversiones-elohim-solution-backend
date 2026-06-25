@@ -25,7 +25,8 @@ Variables útiles en `.env` / `docker-compose.yml`:
 |----------|-------------|
 | `SEED_DATA` | `true` en `backend/.env` carga `DemoDataSeeder` (productos, ventas, reservaciones, usuarios demo) |
 | `SEED_DEMO_DATA` | Alias de `SEED_DATA` (compatibilidad) |
-| `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` | Super administrador inicial |
+| `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` | Super administrador inicial de la plataforma |
+| `SEED_USER_EMAIL` / `SEED_USER_PASSWORD` | Usuario administrador personalizado inicial (se enlazará al primer tenant activo) |
 
 ## Esquema de base de datos
 
@@ -70,6 +71,14 @@ dotnet run --project src/ElohimShop.API/ElohimShop.API.csproj
 Las migraciones en `src/ElohimShop.Infrastructure/Migrations/` son legado/local.  
 Si el modelo cambia, alinea primero `db/elohim_db.sql` y los `*Configuration.cs` (columnas `snake_case`).  
 No ejecutes `ef database update` en Docker si el esquema ya viene del SQL.
+
+## Características y Mejoras Recientes
+
+### 🔐 Validación de Correos Únicos
+* Se ha actualizado la validación de registros en `AuthService` para garantizar que un correo no pueda ser duplicado si ya existe como staff o administrador global en la plataforma, protegiendo contra usurpación de identidad entre distintos tenants.
+
+### 🖼️ Firmas de Cloudinary Ordenadas
+* En `PlatformService.cs`, se añadió soporte para la firma de solicitudes con el parámetro opcional `Folder`. Para cumplir estrictamente con los requisitos de la API de Cloudinary, los parámetros se ordenan alfabéticamente antes de generar el hash SHA-256.
 
 ## Más convenciones
 
