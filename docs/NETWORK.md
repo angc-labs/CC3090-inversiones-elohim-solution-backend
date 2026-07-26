@@ -1,12 +1,12 @@
 # Arquitectura de Red y Flujo de Peticiones (Middlewares)
 
-La comunicación entre el frontend (Next.js) y el backend (ASP.NET Core API) está orquestada por una canalización de middlewares personalizada en C#. Esta canalización es la encargada de la seguridad, la resolución del inquilino activo (multi-tenant) y la validación cruzada de las sesiones de usuario.
+La comunicación entre el frontend (Next.js) y el backend (ASP.NET Core API) está orquestada por una canalización de middlewares personalizada en C#. Esta canalización es la encargada de la seguridad, la resolución del multi-tenant y la validación cruzada de las sesiones de usuario.
 
 ---
 
 ## 1. Pipeline de Middlewares en el Backend
 
-El flujo de una petición HTTP entrante sigue el siguiente orden estricto dentro de la API (definido en [Program.cs](file:///home/angc_/Dev/CC3090-inversiones-elohim-solution/backend/src/ElohimShop.API/Program.cs)):
+El flujo de una petición HTTP entrante sigue el siguiente orden estricto dentro de la API: 
 
 ```mermaid
 graph TD
@@ -29,8 +29,6 @@ graph TD
 ## 2. Detalle de Middlewares Personalizados
 
 ### A. TenantResolverMiddleware
-Clase: [TenantResolverMiddleware.cs](file:///home/angc_/Dev/CC3090-inversiones-elohim-solution/backend/src/ElohimShop.API/Middleware/TenantResolverMiddleware.cs)
-
 Este middleware determina qué tienda (tenant) está realizando o recibiendo la petición. Se evalúa de manera jerárquica en base a los siguientes criterios:
 
 1. **Cabecera Directa (`X-Tenant-ID`)**:
@@ -48,8 +46,6 @@ Este middleware determina qué tienda (tenant) está realizando o recibiendo la 
 ---
 
 ### B. BetterAuthSessionMiddleware
-Clase: [BetterAuthSessionMiddleware.cs](file:///home/angc_/Dev/CC3090-inversiones-elohim-solution/backend/src/ElohimShop.Infrastructure/Auth/BetterAuthSessionMiddleware.cs)
-
 Valida la sesión del usuario directamente contra la base de datos compartida que Better-Auth manipula desde el frontend.
 
 1. **Extracción del Token**:

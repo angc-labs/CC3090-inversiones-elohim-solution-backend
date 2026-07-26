@@ -6,23 +6,103 @@ Todos los controladores (excepto los de catálogo público) requieren el paso de
 
 ---
 
-## 1. Resumen de Controladores y Rutas
+## 1. Controladores por Módulo
 
-| Controlador | Prefijo de Ruta | Acceso | Propósito |
-| :--- | :--- | :--- | :--- |
-| **AuthController** | `/api/v1/auth` | Público / Autenticado | Gestión de sesiones, login, registro, recuperación de contraseña. |
-| **AdminUsuariosController** | `/api/admin/usuarios` | Staff / Admin | Administración de usuarios y staff dentro de una tienda. |
-| **ProductosV1Controller** | `/api/v1/productos` | Staff / Admin | ABM (Alta, Baja, Modificación) de productos y categorías de la tienda. |
-| **SucursalesV1Controller** | `/api/v1/sucursales` | Staff / Admin | Gestión de sucursales asociadas a la tienda. |
-| **InventariosController** | `/api/v1/inventarios` | Staff / Admin | Control y actualización de existencias de productos por sucursal. |
-| **ReservacionesV1Controller** | `/api/v1/reservaciones` | Staff / Admin / Cliente | Creación y despacho de reservaciones / compras. |
-| **ReportesV1Controller** | `/api/v1/reportes` | Staff / Admin | Obtención de estadísticas, reportes personalizados y exportación a Excel. |
-| **TiendasController** | `/api/v1/tiendas` | Staff / Admin | Configuración de información básica y configuración visual (JSONB). |
-| **MetodoPagoController** | `/api/metodoPago` | Cliente | Gestión de tarjetas y tokens guardados en la pasarela de pagos. |
-| **PagosController** | `/api/pagos` | Cliente | Intenciones de pago de Stripe y Webhooks para confirmación automática. |
-| **MediaController** | `/api/v1/media` | Staff / Admin | Carga de archivos multimedia directamente a Cloudinary. |
-| **CarritoV1Controller** | `/api/v1/carrito` | Cliente | Gestión del carrito de compras persistente. |
-| **CatalogController** | `/api` | Público | Consulta del catálogo de productos y categorías para el Storefront. |
+### Autenticación (`AuthController`)
+Prefijo: `/api/v1/auth` | Acceso: Público / Autenticado
+
+- `POST /login` - Iniciar sesión con credenciales
+- `POST /register` - Registrar nuevo usuario o staff
+- `POST /logout` - Cerrar sesión
+- `POST /forgot-password` - Solicitar recuperación de contraseña
+- `POST /change-password` - Cambiar contraseña existente
+
+### Administración de Usuarios (`AdminUsuariosController`)
+Prefijo: `/api/admin/usuarios` | Acceso: Admin / SuperAdmin
+
+- `GET /` - Listar usuarios de la tienda
+- `POST /` - Crear nuevo usuario o staff
+- `PUT /{id}` - Editar información de usuario
+- `POST /{id}/reset-password` - Generar códigos de recuperación
+
+### Productos y Catálogo (`ProductosV1Controller`)
+Prefijo: `/api/v1/productos` | Acceso: Público (lectura), Admin (escritura)
+
+- `GET /` - Listar productos con paginación y filtros
+- `POST /` - Crear producto (Admin)
+- `PUT /{id}` - Editar producto (Admin)
+- `DELETE /{id}` - Eliminar producto soft-delete (Admin)
+
+### Sucursales (`SucursalesV1Controller`)
+Prefijo: `/api/v1/sucursales` | Acceso: Admin
+
+- `GET /` - Listar sucursales de la tienda
+- `POST /` - Crear sucursal
+- `PUT /{id}` - Editar información de sucursal
+- `DELETE /{id}` - Eliminar sucursal
+
+### Inventarios (`InventariosController`)
+Prefijo: `/api/v1/inventarios` | Acceso: Admin
+
+- `GET /sucursal/{sucursalId}` - Ver stock por sucursal
+- `PUT /` - Actualizar cantidad de stock
+- `GET /bajo-stock` - Productos con stock bajo
+
+### Carrito (`CarritoV1Controller`)
+Prefijo: `/api/v1/carrito` | Acceso: Cliente Autenticado
+
+- `GET /` - Ver carrito del cliente
+- `POST /` - Agregar producto al carrito
+- `PUT /{itemId}` - Actualizar cantidad de item
+- `DELETE /{itemId}` - Remover producto del carrito
+
+### Reservaciones y Compras (`ReservacionesV1Controller`)
+Prefijo: `/api/v1/reservaciones` | Acceso: Admin / Cliente
+
+- `GET /` - Listar todas las reservaciones (Admin)
+- `GET /mis-reservaciones` - Historial de compras del cliente
+- `POST /` - Crear nueva reservación (Cliente)
+- `PUT /{id}/despacho` - Cambiar estado de despacho (Admin)
+
+### Pagos (`PagosController`)
+Prefijo: `/api/pagos` | Acceso: Cliente / Público (webhooks)
+
+- `POST /crear-intento` - Crear intent de pago Stripe (Cliente)
+- `POST /webhook` - Recibir eventos de Stripe (Público - asíncrono)
+
+### Métodos de Pago (`MetodoPagoController`)
+Prefijo: `/api/metodoPago` | Acceso: Cliente Autenticado
+
+- `GET /` - Listar tarjetas guardadas
+- `POST /` - Guardar nueva tarjeta (tokenizada en Stripe)
+- `DELETE /{id}` - Eliminar tarjeta guardada
+
+### Reportes y Dashboard (`ReportesV1Controller`)
+Prefijo: `/api/v1/reportes` | Acceso: Admin
+
+- `GET /dashboard` - Métricas consolidadas de la tienda
+- `POST /personalizados` - Guardar plantilla de reporte SQL
+- `GET /personalizados/{id}/ejecutar` - Ejecutar reporte personalizado
+- `GET /ventas/exportar` - Descargar reporte en Excel
+
+### Configuración Visual (`TiendasController`)
+Prefijo: `/api/v1/tiendas` | Acceso: Público (lectura), Admin (escritura)
+
+- `GET /configuracion-visual` - Obtener configuración del constructor
+- `PUT /configuracion-visual` - Guardar cambios de diseño (Admin)
+- `GET /informacion` - Datos básicos de la tienda
+
+### Media y Archivos (`MediaController`)
+Prefijo: `/api/v1/media` | Acceso: Admin
+
+- `POST /upload` - Subir archivo a Cloudinary
+- `DELETE /{id}` - Eliminar archivo (Cloudinary)
+
+### Catálogo Público (`CatalogController`)
+Prefijo: `/api/` | Acceso: Público
+
+- `GET /categorias` - Listar categorías disponibles
+- `GET /productos` - Consultar catálogo (sin autenticación)
 
 ---
 
@@ -171,3 +251,5 @@ Prefijo: `/api/v1/tiendas`
 * **`PUT /configuracion-visual`** (Staff con rol `administrador`)
   * **Payload**: Objeto JSON serializado con el esquema de secciones (`sections`).
   * **Respuesta (200 OK)**: Configuración guardada en la base de datos de manera persistente.
+
+**Nota**: Para mayor informacion se sugiere consultar el Swagger del proyecto, este incluye el listado completo de todos los metodos http creados y el formato de las solicitudes y respuestas (en formato Json) de dichos metodos. 
