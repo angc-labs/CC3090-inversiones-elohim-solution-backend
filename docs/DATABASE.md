@@ -30,124 +30,96 @@ Mapea las tablas originales del eCommerce de Esmira. Se mantiene por motivos de 
 
 ## 2. Diagrama de Relaciones (MER - Platform)
 
-A continuación se muestra el modelo de datos del contexto unificado multi-tenant en formato Mermaid:
+A continuación se muestra el modelo de datos del contexto unificado multi-tenant:
 
-```mermaid
-erDiagram
-    Tienda ||--o{ Sucursal : "posee"
-    Tienda ||--o{ PlatformUser : "registra"
-    Tienda ||--o{ Categoria : "organiza"
-    Tienda ||--o{ Producto : "vende"
-    Tienda ||--o{ Inventario : "distribuye"
-    Tienda ||--o{ CarritoElemento : "almacena"
-    Tienda ||--o{ Reservacion : "recibe"
-    Tienda ||--o{ ReportePersonalizado : "ejecuta"
-    Tienda ||--o| CredencialesIntegracion : "configura"
+### Tabla de Relaciones
 
-    PlatformUser ||--o{ Session : "inicia"
-    PlatformUser ||--o{ Account : "enlaza"
-    PlatformUser ||--o{ CarritoElemento : "agrega"
-    PlatformUser ||--o{ Reservacion : "reserva"
+| Entidad Principal | Relación | Entidad Secundaria | Cardinalidad | Significado |
+|---|---|---|---|---|
+| **Tienda** | posee | Sucursal | 1 : N | Una tienda tiene múltiples sucursales |
+| **Tienda** | registra | PlatformUser | 1 : N | Una tienda puede tener múltiples usuarios |
+| **Tienda** | organiza | Categoria | 1 : N | Una tienda organiza sus productos en categorías |
+| **Tienda** | vende | Producto | 1 : N | Una tienda vende múltiples productos |
+| **Tienda** | distribuye | Inventario | 1 : N | Una tienda distribuye inventario a sucursales |
+| **Tienda** | almacena | CarritoElemento | 1 : N | Una tienda almacena carritos de compra de usuarios |
+| **Tienda** | recibe | Reservacion | 1 : N | Una tienda recibe múltiples reservaciones |
+| **Tienda** | ejecuta | ReportePersonalizado | 1 : N | Una tienda genera múltiples reportes |
+| **Tienda** | configura | CredencialesIntegracion | 1 : 1 | Una tienda tiene exactamente una configuración de integraciones |
+| **PlatformUser** | inicia | Session | 1 : N | Un usuario puede tener múltiples sesiones activas |
+| **PlatformUser** | enlaza | Account | 1 : N | Un usuario puede enlazar múltiples cuentas (OAuth) |
+| **PlatformUser** | agrega | CarritoElemento | 1 : N | Un usuario agrega múltiples productos a su carrito |
+| **PlatformUser** | realiza | Reservacion | 1 : N | Un usuario realiza múltiples reservaciones |
+| **Sucursal** | asigna_a | PlatformUser | 1 : N | Una sucursal asigna múltiples usuarios |
+| **Sucursal** | almacena_en | Inventario | 1 : N | Una sucursal almacena inventario de múltiples productos |
+| **Sucursal** | despacha_en | Reservacion | 1 : N | Una sucursal despacha múltiples reservaciones |
+| **Producto** | tiene | Inventario | 1 : N | Un producto tiene múltiples registros de inventario por sucursal |
+| **Producto** | esta_en | CarritoElemento | 1 : N | Un producto puede estar en múltiples carritos |
+| **Producto** | contiene_en | DetalleReservacion | 1 : N | Un producto se detalla en múltiples reservaciones |
+| **Producto** | pertenece | Categoria | M : N | Un producto puede pertenecer a múltiples categorías |
+| **Reservacion** | desglosa_en | DetalleReservacion | 1 : N | Una reservación se desglosa en múltiples detalles de productos |
 
-    Sucursal ||--o{ PlatformUser : "asigna_a"
-    Sucursal ||--o{ Inventario : "almacena_en"
-    Sucursal ||--o{ Reservacion : "despacha_en"
+### Definición de Entidades Principales
 
-    Producto ||--o{ Inventario : "tiene"
-    Producto ||--o{ CarritoElemento : "esta_en"
-    Producto ||--o{ DetalleReservacion : "contiene"
-    Producto }o--o| Categoria : "pertenece"
+```
+Tienda
+├── id (PK): Identificador único
+├── nombre: Nombre del negocio
+├── slug: Identificador URL amigable
+├── estado: Activa/Inactiva
+├── configuracion_visual: Datos JSON de personalización
+└── fecha_creacion: Timestamp de registro
 
-    Reservacion ||--|{ DetalleReservacion : "desglosa"
+Sucursal
+├── id (PK)
+├── tienda_id (FK): Referencia a Tienda
+├── nombre: Nombre de la sucursal
+├── direccion: Ubicación física
+├── telefono: Contacto
+└── fecha_creacion
 
-    Tienda {
-        string id PK
-        string nombre
-        string slug
-        string estado
-        jsonb configuracion_visual
-        timestamp fecha_creacion
-    }
+PlatformUser
+├── id (PK)
+├── name: Nombre completo
+├── email: Correo único por tienda
+├── tienda_id (FK)
+├── rol_staff: Admin/Vendor/Cashier
+├── sucursal_id (FK): Asignación a sucursal (opcional)
+└── stripe_customer_id: ID de cliente en Stripe
 
-    Sucursal {
-        string id PK
-        string tienda_id FK
-        string nombre
-        string direccion
-        string telefono
-        timestamp fecha_creacion
-    }
+Producto
+├── id (PK)
+├── tienda_id (FK)
+├── categoria_id (FK)
+├── nombre
+├── sku: Identificador de stock
+├── precio_mayoreo / precio_detalle
+├── stock_actual: Disponible globalmente
+├── stock_minimo: Alerta de bajo stock
+└── imagen_url
 
-    PlatformUser {
-        string id PK
-        string name
-        string email
-        boolean emailVerified
-        string image
-        string tienda_id FK
-        string tipo_usuario
-        string rol_staff
-        string telefono
-        string stripe_customer_id
-        boolean estado
-        string sucursal_id FK
-    }
+Inventario
+├── id (PK)
+├── tienda_id (FK)
+├── sucursal_id (FK): Stock específico por sucursal
+├── producto_id (FK)
+└── stock: Cantidad disponible en esta sucursal
 
-    Producto {
-        string id PK
-        string tienda_id FK
-        string categoria_id FK
-        string nombre
-        string descripcion
-        string sku
-        decimal precio_mayoreo
-        decimal precio_detalle
-        string imagen_url
-        boolean publicado
-        int stock_actual
-        int stock_minimo
-        boolean eliminado
-    }
+Reservacion
+├── id (PK)
+├── tienda_id (FK)
+├── sucursal_id (FK): Despacho en sucursal
+├── usuario_id (FK): Quien reservó
+├── monto_total: Precio final
+├── estado_pago: Pendiente/Pagado/Refundado
+├── estado_despacho: Pendiente/Despachado/Entregado
+└── stripe_intent_id: Referencia de Stripe
 
-    Inventario {
-        string id PK
-        string tienda_id FK
-        string sucursal_id FK
-        string producto_id FK
-        int stock
-    }
-
-    Reservacion {
-        string id PK
-        string tienda_id FK
-        string sucursal_id FK
-        string usuario_id FK
-        decimal monto_total
-        string estado_pago
-        string estado_despacho
-        string stripe_intent_id
-        timestamp fecha_reserva
-    }
-
-    DetalleReservacion {
-        string id PK
-        string reservacion_id FK
-        string producto_id FK
-        int cantidad
-        decimal precio_cobrado
-        decimal subtotal
-    }
-
-    CredencialesIntegracion {
-        string tienda_id PK, FK
-        string stripe_secret_key
-        string stripe_public_key
-        string cloudinary_cloud_name
-        string cloudinary_api_key
-        string cloudinary_api_secret
-        string smtp_email
-        string smtp_password
-    }
+CredencialesIntegracion
+├── tienda_id (PK, FK)
+├── stripe_secret_key
+├── stripe_public_key
+├── cloudinary_cloud_name
+└── smtp_email / smtp_password
 ```
 
 ---
