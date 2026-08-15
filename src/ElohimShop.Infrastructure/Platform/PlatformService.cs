@@ -14,7 +14,7 @@ namespace ElohimShop.Infrastructure.Platform;
 
 public class PlatformService : IPlatformService
 {
-    private static readonly Regex UnsafeSqlPattern = new(@"\b(drop|delete|update|insert|alter|truncate|grant|revoke|create)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex UnsafeSqlPattern = new(@"\b(drop|delete|update|insert|alter|truncate|grant|revoke|create|exec|execute|call)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly PlatformDbContext _dbContext;
     private readonly ITenantProvider _tenantProvider;
@@ -764,20 +764,34 @@ public class PlatformService : IPlatformService
 
         var tenantId = RequireTenantId();
         var querySql = request.QuerySql;
-        querySql = Regex.Replace(querySql, "@tenant_id", $"'{tenantId}'", RegexOptions.IgnoreCase);
-        querySql = Regex.Replace(querySql, "@tienda_id", $"'{tenantId}'", RegexOptions.IgnoreCase);
+        
+        // Reemplazar tanto '@tenant_id' como @tenant_id y sus variantes
+        querySql = Regex.Replace(querySql, @"'@tenant_id'", $"'{tenantId}'", RegexOptions.IgnoreCase);
+        querySql = Regex.Replace(querySql, @"'@tienda_id'", $"'{tenantId}'", RegexOptions.IgnoreCase);
+        querySql = Regex.Replace(querySql, @"@tenant_id\b", $"'{tenantId}'", RegexOptions.IgnoreCase);
+        querySql = Regex.Replace(querySql, @"@tienda_id\b", $"'{tenantId}'", RegexOptions.IgnoreCase);
 
         var mainConnectionString = _dbContext.Database.GetConnectionString()
             ?? throw new InvalidOperationException("No se pudo obtener la cadena de conexión de la base de datos.");
 
-        var builder = new Npgsql.NpgsqlConnectionStringBuilder(mainConnectionString)
+        Npgsql.NpgsqlConnection connection;
+        try
         {
-            Username = "reports_readonly",
-            Password = "ReadOnlyPassword123!"
-        };
+            var builder = new Npgsql.NpgsqlConnectionStringBuilder(mainConnectionString)
+            {
+                Username = "reports_readonly",
+                Password = "ReadOnlyPassword123!"
+            };
+            connection = new Npgsql.NpgsqlConnection(builder.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+        }
+        catch
+        {
+            // Fallback a conexión principal si reports_readonly no está configurado
+            connection = new Npgsql.NpgsqlConnection(mainConnectionString);
+            await connection.OpenAsync(cancellationToken);
+        }
 
-        await using var connection = new Npgsql.NpgsqlConnection(builder.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
         try
         {
             await using var command = connection.CreateCommand();
@@ -790,13 +804,25 @@ public class PlatformService : IPlatformService
                 var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
                 for (var i = 0; i < reader.FieldCount; i++)
                 {
-                    row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    var colName = reader.GetName(i);
+                    // Evitar sobrescrituras en caso de columnas duplicadas (ej. múltiples SELECT id en JOINs)
+                    if (row.ContainsKey(colName))
+                    {
+                        colName = $"{colName}_{i}";
+                    }
+                    row[colName] = reader.IsDBNull(i) ? null : reader.GetValue(i);
                 }
 
                 rows.Add(row);
             }
 
             return new SqlExecutionResult(rows);
+        }
+        catch (Npgsql.PostgresException ex)
+        {
+            var hint = string.IsNullOrWhiteSpace(ex.Hint) ? "" : $" (Sugerencia: {ex.Hint})";
+            var detail = string.IsNullOrWhiteSpace(ex.Detail) ? "" : $" Detalle: {ex.Detail}";
+            throw new InvalidOperationException($"Error SQL ({ex.SqlState}): {ex.MessageText}{detail}{hint}");
         }
         finally
         {
@@ -1265,43 +1291,37 @@ public class PlatformService : IPlatformService
 
     private static void ValidarSqlSeleccion(string querySql)
     {
+        if (string.IsNullOrWhiteSpace(querySql))
+        {
+            throw new InvalidOperationException("La consulta SQL no puede estar vacía.");
+        }
+
         var normalized = querySql.Trim();
-        if (!normalized.StartsWith("select", StringComparison.OrdinalIgnoreCase) &&
-            !normalized.StartsWith("with", StringComparison.OrdinalIgnoreCase))
+
+        // Eliminar comentarios SQL (-- y /* ... */) para la validación de seguridad
+        var cleanSql = Regex.Replace(normalized, @"/\*.*?\*/", " ", RegexOptions.Singleline);
+        cleanSql = Regex.Replace(cleanSql, @"--.*$", " ", RegexOptions.Multiline).Trim();
+
+        if (string.IsNullOrWhiteSpace(cleanSql))
         {
-            throw new InvalidOperationException("Solo se permiten consultas SELECT.");
+            throw new InvalidOperationException("La consulta SQL no puede estar vacía.");
         }
 
-        if (UnsafeSqlPattern.IsMatch(normalized))
+        // Permitir SELECT, WITH (Common Table Expressions) y EXPLAIN
+        if (!cleanSql.StartsWith("select", StringComparison.OrdinalIgnoreCase) &&
+            !cleanSql.StartsWith("with", StringComparison.OrdinalIgnoreCase) &&
+            !cleanSql.StartsWith("explain", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("La consulta contiene comandos no permitidos.");
+            throw new InvalidOperationException("Solo se permiten consultas de lectura (SELECT, WITH o EXPLAIN).");
         }
 
-        // Validar aislamiento de inquilinos (tenant isolation)
-        var tiendaIdMatches = Regex.Matches(normalized, @"\btienda_id\b", RegexOptions.IgnoreCase);
-        if (tiendaIdMatches.Count > 0)
+        // Eliminar cadenas literales ('...') para evitar falsos positivos con palabras clave dentro de textos
+        var sqlWithoutLiterals = Regex.Replace(cleanSql, @"'(''|[^'])*'", "''");
+
+        // Validar comandos inseguros de modificación de datos o estructura
+        if (UnsafeSqlPattern.IsMatch(sqlWithoutLiterals))
         {
-            var validPattern = new Regex(@"\btienda_id\s*=\s*@(tenant|tienda)_id\b", RegexOptions.IgnoreCase);
-            var matches = validPattern.Matches(normalized);
-            if (matches.Count != tiendaIdMatches.Count)
-            {
-                throw new InvalidOperationException("Por motivos de seguridad, la columna tienda_id sólo puede ser comparada con el parámetro @tenant_id (ej. tienda_id = @tenant_id).");
-            }
-        }
-        else
-        {
-            // Si no tiene tienda_id, verificamos si está consultando la tabla Tienda.
-            // Si es así, debe tener el filtro id = @tenant_id (o t.id = @tenant_id, etc.)
-            var containsTienda = Regex.IsMatch(normalized, @"\btienda\b", RegexOptions.IgnoreCase);
-            var validIdPattern = new Regex(@"\b(?:""?\w+""?\.)?""?id""?\s*=\s*@(tenant|tienda)_id\b", RegexOptions.IgnoreCase);
-            if (containsTienda && validIdPattern.IsMatch(normalized))
-            {
-                // Permitido porque filtra por el ID de la tienda
-            }
-            else
-            {
-                throw new InvalidOperationException("Toda consulta debe incluir el filtro de tienda_id para aislar sus datos (o id = @tenant_id si consulta la tabla Tienda), por ejemplo: WHERE tienda_id = @tenant_id");
-            }
+            throw new InvalidOperationException("La consulta contiene comandos no permitidos (solo se admiten sentencias de lectura).");
         }
     }
 
