@@ -14,9 +14,7 @@ Documentación de dónde está cada endpoint definido en Swagger (API.md) y su e
 | `/login` | POST | L115-126 | `LoginAsync_CredencialesValidas_RetornaToken()` | ✅ |
 | `/register` | POST | L128-130 | `RegisterAsync_RegistroClienteValido_RetornaToken()` | ✅ |
 | `/register` (Admin) | POST | L128-130 | `RegisterAdminAsync_AdminValido_RetornaToken()` | ✅ |
-| `/logout` | POST | L131 | ❌ FALTA | 🔴 |
-| `/forgot-password` | POST | L132-134 | ❌ FALTA | 🔴 |
-| `/change-password` | POST | L137-139 | ❌ FALTA | 🔴 |
+
 
 ---
 

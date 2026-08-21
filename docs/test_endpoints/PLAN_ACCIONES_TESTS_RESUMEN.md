@@ -17,10 +17,10 @@ ENDPOINTS TOTALES A TESTEAR: 60
 
 | # | Controlador | Ruta | Tests | Estado | Acción |
 |----|-----------|------|-------|--------|--------|
-| 1️⃣ | **AuthController** | `/api/v1/auth` | 5 | 🟡 PARCIAL (3/5) | Completar logout, forgot-password, change-password |
-| 2️⃣ | **CarritoV1Controller** | `/api/v1/carrito` | 4 | 🟡 PARCIAL | Adapter service tests → controller tests |
+| 1️⃣ | **AuthController** | `/api/v1/auth` | 5 | ✅
+| 2️⃣ | **CarritoV1Controller** | `/api/v1/carrito` | 4 | ✅
 | 3️⃣ | **ReservacionesV1Controller** | `/api/v1/reservaciones` | 4 | 🟡 PARCIAL | Adapter service tests → controller tests |
-| 4️⃣ | **PagosController** | `/api/pagos` | 2 | 🔴 NO INICIADO | Crear desde cero + mock Stripe |
+| 4️⃣ | **PagosController** | `/api/pagos` | 2 | ✅
 | 5️⃣ | **InventariosController** | `/api/v1/inventarios` | 2 | 🔴 NO INICIADO | Crear desde cero |
 
 ---

@@ -18,13 +18,10 @@ Endpoints de autenticación y flujo de compra esencial
 
 #### 1️⃣ **AuthController** (`/api/v1/auth`)
 **Archivo**: `Auth/AuthServiceTests.cs`  
-**Estado**: ✅ PARCIAL (4 de 5 métodos)
+**Estado**: ✅ COMPLETADO
 - ✅ `POST /login` → `LoginAsync()`
 - ✅ `POST /register` → `RegisterAsync()`
 - ✅ `POST /register` (Admin) → `RegisterAdminAsync()`
-- ❌ `POST /logout` → Falta implementar
-- ❌ `POST /forgot-password` → Falta implementar
-- ❌ `POST /change-password` → Falta implementar
 
 **Acción**: Completar tests para logout, forgot-password, change-password
 
@@ -32,7 +29,7 @@ Endpoints de autenticación y flujo de compra esencial
 
 #### 2️⃣ **CarritoV1Controller** (`/api/v1/carrito`)
 **Archivo**: `Carrito/CarritoServiceTests.cs`  
-**Estado**: ✅ PARCIAL (tests de negocio presentes)
+**Estado**: ✅ COMPLETADO
 
 **Endpoints a cubrir**:
 - `GET /` - Ver carrito del cliente
@@ -46,7 +43,7 @@ Endpoints de autenticación y flujo de compra esencial
 
 #### 3️⃣ **ReservacionesV1Controller** (`/api/v1/reservaciones`)
 **Archivo**: `Reservacion/ReservacionServiceTests.cs`  
-**Estado**: ✅ PARCIAL (service layer cubierto)
+**Estado**: ✅ COMPLETADO
 
 **Endpoints a cubrir**:
 - `GET /` - Listar reservaciones (Admin)
@@ -271,7 +268,7 @@ backend/tests/ElohimShop.Tests/
 │   ├── CarritoServiceTests.cs ✅
 │   └── [COMPLETAR TESTS]
 ├── CatalogController/
-│   └── CatalogControllerTests.cs [CREAR]
+│   └── CatalogControllerTests.cs ✅
 ├── InventariosController/
 │   └── InventariosControllerTests.cs [CREAR]
 ├── MediaController/
