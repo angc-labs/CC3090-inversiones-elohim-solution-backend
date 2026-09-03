@@ -17,6 +17,7 @@ public class AuthServiceTests
     private readonly PlatformDbContext _dbContext;
     private readonly Mock<ITenantProvider> _tenantProviderMock;
     private readonly Mock<IConfiguration> _configMock;
+    private readonly Mock<IGoogleTokenValidator> _googleTokenValidatorMock;
     private readonly AuthService _service;
     private const string TestTenantId = "test-tenant-123";
 
@@ -39,7 +40,13 @@ public class AuthServiceTests
         httpContext.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity("TestAuth"));
         httpContextAccessorMock.Setup(h => h.HttpContext).Returns(httpContext);
 
-        _service = new AuthService(_dbContext, _configMock.Object, _tenantProviderMock.Object, httpContextAccessorMock.Object);
+        _googleTokenValidatorMock = new Mock<IGoogleTokenValidator>();
+        _service = new AuthService(
+            _dbContext,
+            _configMock.Object,
+            _tenantProviderMock.Object,
+            httpContextAccessorMock.Object,
+            _googleTokenValidatorMock.Object);
     }
 
     [Fact]
@@ -152,7 +159,12 @@ public class AuthServiceTests
         httpContext.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity());
         httpContextAccessorMock.Setup(h => h.HttpContext).Returns(httpContext);
 
-        var service = new AuthService(_dbContext, _configMock.Object, _tenantProviderMock.Object, httpContextAccessorMock.Object);
+        var service = new AuthService(
+            _dbContext,
+            _configMock.Object,
+            _tenantProviderMock.Object,
+            httpContextAccessorMock.Object,
+            _googleTokenValidatorMock.Object);
 
         var request = new RegisterRequestDto
         {
@@ -259,5 +271,77 @@ public class AuthServiceTests
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _service.LoginAsync(request, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task LoginWithGoogleAsync_CuentaNueva_CreaUsuarioYAccount()
+    {
+        SetupGooglePayload("google-subject-new", "nuevo@test.com", "Nuevo Cliente");
+
+        var result = await _service.LoginWithGoogleAsync(
+            new GoogleAuthRequestDto { IdToken = "valid-token", TipoUsuario = "cliente", TiendaId = TestTenantId },
+            CancellationToken.None);
+
+        Assert.Equal("nuevo@test.com", result.Correo);
+        Assert.Equal("cliente", result.TipoUsuario);
+        Assert.NotEmpty(result.Token);
+        var user = await _dbContext.Users.IgnoreQueryFilters().SingleAsync(u => u.Email == "nuevo@test.com");
+        Assert.True(user.EmailVerified);
+        Assert.Equal(TestTenantId, user.TiendaId);
+        Assert.True(await _dbContext.Accounts.IgnoreQueryFilters().AnyAsync(a =>
+            a.UserId == user.Id && a.ProviderId == "google" && a.AccountId == "google-subject-new"));
+    }
+
+    [Fact]
+    public async Task LoginWithGoogleAsync_CuentaConPassword_VinculaSinDuplicarUsuario()
+    {
+        var user = new PlatformUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Cliente Existente",
+            Email = "existente@test.com",
+            TiendaId = TestTenantId,
+            TipoUsuario = "cliente"
+        };
+        _dbContext.Users.Add(user);
+        _dbContext.Accounts.Add(new Account
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserId = user.Id,
+            ProviderId = "credential",
+            AccountId = user.Email,
+            Password = PasswordHashing.Hash("Password123!")
+        });
+        await _dbContext.SaveChangesAsync();
+        SetupGooglePayload("google-subject-existing", user.Email, user.Name);
+
+        await _service.LoginWithGoogleAsync(
+            new GoogleAuthRequestDto { IdToken = "valid-token", TipoUsuario = "cliente" },
+            CancellationToken.None);
+
+        Assert.Equal(1, await _dbContext.Users.IgnoreQueryFilters().CountAsync(u => u.Email == user.Email));
+        Assert.Equal(2, await _dbContext.Accounts.IgnoreQueryFilters().CountAsync(a => a.UserId == user.Id));
+    }
+
+    [Fact]
+    public async Task LoginWithGoogleAsync_CuentaVinculada_IniciaSesionSinDuplicarAccount()
+    {
+        SetupGooglePayload("google-subject-linked", "linked@test.com", "Linked User");
+        var request = new GoogleAuthRequestDto { IdToken = "valid-token", TipoUsuario = "cliente" };
+
+        var first = await _service.LoginWithGoogleAsync(request, CancellationToken.None);
+        var second = await _service.LoginWithGoogleAsync(request, CancellationToken.None);
+
+        Assert.Equal(first.UsuarioId, second.UsuarioId);
+        Assert.Equal(1, await _dbContext.Accounts.IgnoreQueryFilters().CountAsync(a =>
+            a.ProviderId == "google" && a.AccountId == "google-subject-linked"));
+        Assert.Equal(2, await _dbContext.Sessions.IgnoreQueryFilters().CountAsync(s => s.UserId == first.UsuarioId));
+    }
+
+    private void SetupGooglePayload(string subject, string email, string name)
+    {
+        _googleTokenValidatorMock
+            .Setup(v => v.ValidateAsync("valid-token", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GoogleTokenPayload(subject, email, name, true, null));
     }
 }
