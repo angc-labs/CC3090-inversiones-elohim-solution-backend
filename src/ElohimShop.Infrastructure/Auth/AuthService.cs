@@ -20,17 +20,20 @@ public class AuthService : IAuthService
     private readonly IConfiguration _configuration;
     private readonly ITenantProvider _tenantProvider;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IGoogleTokenValidator _googleTokenValidator;
 
     public AuthService(
         PlatformDbContext dbContext,
         IConfiguration configuration,
         ITenantProvider tenantProvider,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        IGoogleTokenValidator googleTokenValidator)
     {
         _dbContext = dbContext;
         _configuration = configuration;
         _tenantProvider = tenantProvider;
         _httpContextAccessor = httpContextAccessor;
+        _googleTokenValidator = googleTokenValidator;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken)
@@ -264,6 +267,97 @@ public class AuthService : IAuthService
             esSuperAdmin);
     }
 
+    public async Task<AuthResponseDto> LoginWithGoogleAsync(
+        GoogleAuthRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var requestedUserType = request.TipoUsuario.Trim().ToLowerInvariant();
+        if (requestedUserType is not ("cliente" or "administrador"))
+        {
+            throw new ArgumentException("El tipo de usuario debe ser cliente o administrador.");
+        }
+
+        var payload = await _googleTokenValidator.ValidateAsync(request.IdToken, cancellationToken);
+        if (!payload.EmailVerified || string.IsNullOrWhiteSpace(payload.Email) || string.IsNullOrWhiteSpace(payload.Subject))
+        {
+            throw new UnauthorizedAccessException("Google no pudo verificar el correo de la cuenta.");
+        }
+
+        var email = payload.Email.Trim().ToLowerInvariant();
+        string? tenantId = null;
+        if (requestedUserType == "cliente")
+        {
+            tenantId = _tenantProvider.GetTenantId();
+            if (string.IsNullOrWhiteSpace(tenantId))
+            {
+                throw new InvalidOperationException("Se requiere el tenant (tienda_id) para acceder como cliente.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.TiendaId) && request.TiendaId != tenantId)
+            {
+                throw new UnauthorizedAccessException("La tienda indicada no coincide con el contexto de la solicitud.");
+            }
+        }
+
+        var linkedAccountQuery = _dbContext.Accounts
+            .IgnoreQueryFilters()
+            .Include(a => a.User)
+            .Where(a => a.ProviderId == "google" && a.AccountId == payload.Subject);
+
+        linkedAccountQuery = requestedUserType == "cliente"
+            ? linkedAccountQuery.Where(a => a.User != null && a.User.TipoUsuario == "cliente" && a.User.TiendaId == tenantId)
+            : linkedAccountQuery.Where(a => a.User != null && (a.User.TipoUsuario == "staff" || a.User.TipoUsuario == "administrador"));
+
+        var usuario = (await linkedAccountQuery.FirstOrDefaultAsync(cancellationToken))?.User;
+
+        if (usuario is null)
+        {
+            var userQuery = _dbContext.Users.IgnoreQueryFilters().Where(u => u.Email == email);
+            userQuery = requestedUserType == "cliente"
+                ? userQuery.Where(u => u.TipoUsuario == "cliente" && u.TiendaId == tenantId)
+                : userQuery.Where(u => u.TipoUsuario == "staff" || u.TipoUsuario == "administrador");
+
+            usuario = await userQuery.FirstOrDefaultAsync(cancellationToken);
+            if (usuario is null)
+            {
+                usuario = requestedUserType == "cliente"
+                    ? CreateGoogleClient(payload, email, tenantId!)
+                    : CreateGoogleStoreAdministrator(payload, email);
+                _dbContext.Users.Add(usuario);
+            }
+
+            _dbContext.Accounts.Add(new Account
+            {
+                Id = Guid.NewGuid().ToString(),
+                UserId = usuario.Id,
+                ProviderId = "google",
+                AccountId = payload.Subject,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+
+            usuario.EmailVerified = true;
+            usuario.Image ??= payload.Picture;
+            usuario.UpdatedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var session = await CreateSessionAsync(usuario.Id, cancellationToken);
+        var esSuperAdmin = string.Equals(usuario.RolStaff, "superadmin", StringComparison.OrdinalIgnoreCase) ||
+                           SuperAdminHelper.IsSuperAdminEmail(usuario.Email, _configuration["SuperAdmin:Email"]);
+
+        return new AuthResponseDto(
+            usuario.Id,
+            usuario.Email,
+            usuario.Name,
+            usuario.TipoUsuario == "cliente" ? "cliente" : "administrador",
+            usuario.RolStaff,
+            usuario.TipoUsuario == "cliente" ? "particular" : null,
+            session.Token,
+            session.ExpiresAt,
+            esSuperAdmin);
+    }
+
     public async Task LogoutAsync(string token, string usuarioId, DateTime expiresAt, CancellationToken cancellationToken)
     {
         var session = await _dbContext.Sessions
@@ -280,6 +374,59 @@ public class AuthService : IAuthService
     public Task ForgotPasswordAsync(ForgotPasswordRequestDto request, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
+    }
+
+    private static PlatformUser CreateGoogleClient(GoogleTokenPayload payload, string email, string tenantId)
+    {
+        return new PlatformUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = payload.Name,
+            Email = email,
+            EmailVerified = true,
+            Image = payload.Picture,
+            TiendaId = tenantId,
+            TipoUsuario = "cliente",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    private PlatformUser CreateGoogleStoreAdministrator(GoogleTokenPayload payload, string email)
+    {
+        var storeId = Guid.NewGuid().ToString();
+        _dbContext.Tiendas.Add(new Tienda
+        {
+            Id = storeId,
+            Nombre = $"Tienda de {payload.Name}",
+            Slug = $"tienda-{Guid.NewGuid().ToString()[..8]}",
+            Estado = "activo",
+            ConfiguracionVisual = "{}",
+            FechaCreacion = DateTime.UtcNow
+        });
+        _dbContext.Sucursales.Add(new Sucursal
+        {
+            Id = Guid.NewGuid().ToString(),
+            TiendaId = storeId,
+            Nombre = "Sucursal Principal",
+            Direccion = "Dirección Principal",
+            Telefono = "Teléfono Principal",
+            FechaCreacion = DateTime.UtcNow
+        });
+
+        return new PlatformUser
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = payload.Name,
+            Email = email,
+            EmailVerified = true,
+            Image = payload.Picture,
+            TiendaId = storeId,
+            TipoUsuario = "staff",
+            RolStaff = "administrador",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
     }
 
     private async Task<Session> CreateSessionAsync(string userId, CancellationToken cancellationToken)
