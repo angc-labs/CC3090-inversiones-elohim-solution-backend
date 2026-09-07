@@ -62,8 +62,8 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description =
             "API de autenticación y operaciones para clientes de Elohim Shop. " +
-            "Pagos Stripe: usar **POST /api/pagos/webhook** (sin JWT) con el payload crudo de Stripe para sincronizar el campo `pagado` de la reservación; " +
-            "**GET /api/pagos/{paymentIntentId}/status** también reconcilia la BD si el pago ya está `succeeded` en Stripe."
+            "Pagos Stripe: usar **POST /api/v1/pagos/webhook** (sin JWT) con el payload crudo de Stripe para sincronizar el campo `pagado` de la reservación; " +
+            "**GET /api/v1/pagos/{paymentIntentId}/status** también reconcilia la BD si el pago ya está `succeeded` en Stripe."
     });
 
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
@@ -235,8 +235,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
-app.UseMiddleware<TenantResolverMiddleware>();
 app.UseAuthentication();
+app.UseMiddleware<TenantResolverMiddleware>();
 app.UseMiddleware<BetterAuthSessionMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
