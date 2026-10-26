@@ -78,6 +78,11 @@ public class TiendasController : V1ControllerBase
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
         }
 
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para actualizar la tienda." });
+        }
+
         try
         {
             var tienda = await _platformService.ActualizarTiendaAsync(request, cancellationToken);
@@ -97,6 +102,11 @@ public class TiendasController : V1ControllerBase
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
         }
 
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para modificar la configuración visual." });
+        }
+
         try
         {
             var tienda = await _platformService.ActualizarConfiguracionVisualAsync(request, cancellationToken);
@@ -114,6 +124,12 @@ public class TiendasController : V1ControllerBase
         CancellationToken cancellationToken)
     {
         if (GetTenantId() is null) return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+
+        if (!EsStaff())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos para guardar borradores de configuración." });
+        }
+
         try
         {
             return Ok(await _platformService.GuardarConfiguracionDraftAsync(request, cancellationToken));
@@ -131,6 +147,12 @@ public class TiendasController : V1ControllerBase
         CancellationToken cancellationToken = default)
     {
         if (GetTenantId() is null) return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+
+        if (!EsStaff())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos para consultar el historial de configuración." });
+        }
+
         try
         {
             return Ok(await _platformService.ObtenerHistorialConfiguracionAsync(limit, offset, cancellationToken));
@@ -145,6 +167,12 @@ public class TiendasController : V1ControllerBase
     public async Task<IActionResult> RestaurarConfiguracion(int version, CancellationToken cancellationToken)
     {
         if (GetTenantId() is null) return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+
+        if (!EsStaff())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos para restaurar versiones de configuración." });
+        }
+
         try
         {
             return Ok(await _platformService.RestaurarConfiguracionVersionAsync(version, cancellationToken));
@@ -163,6 +191,11 @@ public class TiendasController : V1ControllerBase
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
         }
 
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para configurar integraciones." });
+        }
+
         var tienda = await _platformService.GuardarIntegracionesAsync(request, cancellationToken);
         return Ok(tienda);
     }
@@ -173,6 +206,11 @@ public class TiendasController : V1ControllerBase
         if (GetTenantId() is null)
         {
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        }
+
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para consultar integraciones." });
         }
 
         var integraciones = await _platformService.ObtenerIntegracionesAsync(cancellationToken);

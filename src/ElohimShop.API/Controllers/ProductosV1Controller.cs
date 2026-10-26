@@ -73,6 +73,11 @@ public class ProductosV1Controller : V1ControllerBase
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
         }
 
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para crear productos." });
+        }
+
         var producto = await _platformService.CrearProductoAsync(request, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, producto);
     }
@@ -83,6 +88,11 @@ public class ProductosV1Controller : V1ControllerBase
         if (GetTenantId() is null)
         {
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        }
+
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para crear productos en lote." });
         }
 
         var productos = await _platformService.CrearProductosBulkAsync(requests, cancellationToken);
@@ -97,6 +107,11 @@ public class ProductosV1Controller : V1ControllerBase
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
         }
 
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para actualizar productos." });
+        }
+
         var producto = await _platformService.ActualizarProductoAsync(id, request, cancellationToken);
         return producto is null ? NotFound(new { error = "Producto no encontrado." }) : Ok(producto);
     }
@@ -107,6 +122,11 @@ public class ProductosV1Controller : V1ControllerBase
         if (GetTenantId() is null)
         {
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        }
+
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para eliminar productos." });
         }
 
         var eliminado = await _platformService.EliminarProductoAsync(id, cancellationToken);

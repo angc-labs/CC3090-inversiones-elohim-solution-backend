@@ -34,6 +34,11 @@ public class InventariosController : V1ControllerBase
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
         }
 
+        if (!EsStaff())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos para ajustar inventario." });
+        }
+
         var inventario = await _platformService.AjustarInventarioAsync(request, cancellationToken);
         return Ok(inventario);
     }
