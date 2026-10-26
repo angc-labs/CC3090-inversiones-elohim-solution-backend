@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions;
 using ElohimShop.Application.Pagos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,9 +14,9 @@ namespace ElohimShop.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/pagos")]
-public class PagosController : ControllerBase
-
+public class PagosController : V1ControllerBase
 {
+    private static readonly Regex StripePaymentIntentRegex = new(@"^pi_[a-zA-Z0-9]{14,255}$", RegexOptions.Compiled);
     private readonly IPagosService _pagosService;
     private readonly IStripeWebhookHandler _stripeWebhookHandler;
 
@@ -82,8 +83,12 @@ public class PagosController : ControllerBase
             return Forbid();
         }
 
-        var clienteId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
-            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(dto.ReservacionId))
+        {
+            return BadRequest(new { error = "El identificador de la reservación es obligatorio." });
+        }
+
+        var clienteId = GetUserId();
         if (string.IsNullOrWhiteSpace(clienteId))
         {
             return Unauthorized(new { error = "Token inválido." });
@@ -107,17 +112,18 @@ public class PagosController : ControllerBase
     [HttpGet("{paymentIntentId}/status")]
     [Authorize]
     [ProducesResponseType(typeof(PagoEstadoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(object), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Estado(string paymentIntentId, CancellationToken cancellationToken)
     {
-        var tipoUsuario = User.FindFirstValue("tipo_usuario") ?? User.FindFirstValue("tipoUsuario");
-        var esAdministrador = tipoUsuario == "administrador";
+        if (string.IsNullOrWhiteSpace(paymentIntentId) || !StripePaymentIntentRegex.IsMatch(paymentIntentId.Trim()))
+        {
+            return BadRequest(new { error = "El identificador del Payment Intent no es válido (debe tener el formato 'pi_...')." });
+        }
 
-        var clienteId = esAdministrador
-            ? null
-            : User.FindFirstValue(JwtRegisteredClaimNames.Sub)
-                ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var esAdministrador = EsAdministrador();
+        var clienteId = esAdministrador ? null : GetUserId();
 
         if (!esAdministrador && string.IsNullOrWhiteSpace(clienteId))
         {
@@ -127,7 +133,7 @@ public class PagosController : ControllerBase
         try
         {
             var estado = await _pagosService
-                .ObtenerEstadoPagoAsync(paymentIntentId, clienteId, esAdministrador, cancellationToken)
+                .ObtenerEstadoPagoAsync(paymentIntentId.Trim(), clienteId, esAdministrador, cancellationToken)
                 .ConfigureAwait(false);
 
             if (estado is null)

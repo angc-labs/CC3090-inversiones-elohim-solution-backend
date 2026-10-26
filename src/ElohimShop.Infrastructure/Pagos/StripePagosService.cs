@@ -195,13 +195,18 @@ public class StripePagosService : IPagosService
         bool esAdministrador,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(paymentIntentId) || !System.Text.RegularExpressions.Regex.IsMatch(paymentIntentId.Trim(), @"^pi_[a-zA-Z0-9]{14,255}$"))
+        {
+            return null;
+        }
+
         AplicarApiKey();
 
         var paymentIntentService = new PaymentIntentService();
         PaymentIntent pi;
         try
         {
-            pi = await paymentIntentService.GetAsync(paymentIntentId, cancellationToken: ct).ConfigureAwait(false);
+            pi = await paymentIntentService.GetAsync(paymentIntentId.Trim(), cancellationToken: ct).ConfigureAwait(false);
         }
         catch (StripeException)
         {
@@ -220,6 +225,14 @@ public class StripePagosService : IPagosService
 
         if (platformReservacion != null)
         {
+            var currentTenant = _tenantProvider.GetTenantId();
+            if (!string.IsNullOrEmpty(currentTenant) &&
+                !string.IsNullOrEmpty(platformReservacion.TiendaId) &&
+                !string.Equals(platformReservacion.TiendaId, currentTenant, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("No tenés permisos para consultar este pago.");
+            }
+
             if (!esAdministrador && platformReservacion.UsuarioId != clienteId)
             {
                 throw new UnauthorizedAccessException("No tenés permisos para consultar este pago.");
