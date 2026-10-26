@@ -22,19 +22,12 @@ public class MediaController : V1ControllerBase
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
         }
 
-        var firma = await _platformService.GenerarFirmaMediaAsync(new MediaSignatureRequest(publicId, timestamp, folder), cancellationToken);
-        return Ok(firma);
-    }
-
-    [HttpDelete]
-    public async Task<IActionResult> Eliminar([FromQuery] string publicId, CancellationToken cancellationToken)
-    {
-        if (GetTenantId() is null)
+        if (!EsStaff())
         {
-            return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos para generar firmas de carga de medios." });
         }
 
-        var eliminado = await _platformService.EliminarMediaAsync(publicId, cancellationToken);
-        return eliminado ? NoContent() : NotFound();
+        var firma = await _platformService.GenerarFirmaMediaAsync(new MediaSignatureRequest(publicId, timestamp, folder), cancellationToken);
+        return Ok(firma);
     }
 }

@@ -362,11 +362,6 @@ public class PlatformService : IPlatformService
             CloudName: credenciales.CloudinaryCloudName);
     }
 
-    public Task<bool> EliminarMediaAsync(string publicId, CancellationToken cancellationToken)
-    {
-        return Task.FromResult(!string.IsNullOrWhiteSpace(publicId));
-    }
-
     public async Task<IReadOnlyList<ProductoDto>> ListarProductosAsync(CancellationToken cancellationToken)
     {
         return await _dbContext.Productos

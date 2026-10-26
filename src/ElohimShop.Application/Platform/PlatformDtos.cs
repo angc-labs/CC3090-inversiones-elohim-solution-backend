@@ -268,7 +268,6 @@ public interface IPlatformService
     Task<CredencialesIntegracionDtoFull> ObtenerIntegracionesAsync(CancellationToken cancellationToken);
 
     Task<MediaSignatureResponse> GenerarFirmaMediaAsync(MediaSignatureRequest request, CancellationToken cancellationToken);
-    Task<bool> EliminarMediaAsync(string publicId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ProductoDto>> ListarProductosAsync(CancellationToken cancellationToken);
     Task<ProductoDto?> ObtenerProductoAsync(string id, CancellationToken cancellationToken);
