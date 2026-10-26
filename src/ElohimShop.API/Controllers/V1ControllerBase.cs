@@ -32,19 +32,32 @@ public abstract class V1ControllerBase : ControllerBase
             return resolvedTenantId;
         }
 
-        if (Request.Headers.TryGetValue("X-Tenant-ID", out var tenantIdHeader) && !string.IsNullOrWhiteSpace(tenantIdHeader))
-        {
-            return tenantIdHeader.ToString().Trim();
-        }
-
         return User.FindFirstValue("tienda_id");
     }
 
-
     protected string? GetUserId()
     {
+        if (HttpContext.Items.TryGetValue("EffectiveUserId", out var effIdObj) &&
+            effIdObj is string effId &&
+            !string.IsNullOrWhiteSpace(effId))
+        {
+            return effId;
+        }
+
         return User.FindFirstValue(JwtRegisteredClaimNames.Sub)
             ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
+
+    protected string? GetEffectiveRole()
+    {
+        if (HttpContext.Items.TryGetValue("EffectiveUserRole", out var effRoleObj) &&
+            effRoleObj is string effRole &&
+            !string.IsNullOrWhiteSpace(effRole))
+        {
+            return effRole;
+        }
+
+        return User.FindFirstValue("rol") ?? User.FindFirstValue("rol_staff");
     }
 
     protected bool EsStaff()
@@ -56,7 +69,7 @@ public abstract class V1ControllerBase : ControllerBase
             return true;
         }
 
-        var rol = User.FindFirstValue("rol") ?? User.FindFirstValue("rol_staff");
+        var rol = GetEffectiveRole();
         return rol is "administrador" or "admin" or "cajero" or "logistica" or "superadmin";
     }
 
@@ -69,7 +82,7 @@ public abstract class V1ControllerBase : ControllerBase
             return true;
         }
 
-        var rol = User.FindFirstValue("rol") ?? User.FindFirstValue("rol_staff");
+        var rol = GetEffectiveRole();
         return string.Equals(rol, "administrador", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(rol, "admin", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(rol, "superadmin", StringComparison.OrdinalIgnoreCase);

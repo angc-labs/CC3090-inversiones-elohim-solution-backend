@@ -81,18 +81,10 @@ public class BetterAuthSessionMiddleware
 
                     if (!string.Equals(user.TiendaId, requestedTenantId, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (user.TipoUsuario == "cliente")
-                        {
-                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                            context.Response.ContentType = "application/json";
-                            await context.Response.WriteAsJsonAsync(new { error = "No tienes acceso a esta tienda." });
-                            return;
-                        }
-
-                        // Check if they have a user record in the target store
+                        // Check if they have a user record in the target store (clientes o staff)
                         var targetUser = await dbContext.Users
                             .IgnoreQueryFilters()
-                            .FirstOrDefaultAsync(u => u.Email == user.Email && u.TiendaId == requestedTenantId);
+                            .FirstOrDefaultAsync(u => u.Email == user.Email && u.TiendaId == requestedTenantId && u.Estado);
 
                         if (targetUser != null)
                         {

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ElohimShop.Application.Admin;
 using ElohimShop.Application.Common;
@@ -8,11 +9,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
-
 namespace ElohimShop.API.Middleware;
 
 public class TenantResolverMiddleware
 {
+    private static readonly Regex TenantIdentifierRegex = new(@"^[a-zA-Z0-9_\-\.]{1,100}$", RegexOptions.Compiled);
     private readonly RequestDelegate _next;
 
     public TenantResolverMiddleware(RequestDelegate next)
@@ -25,23 +26,42 @@ public class TenantResolverMiddleware
         string? candidateTenantId = null;
         string? candidateSlug = null;
 
-        // 1. Extraer identificador de tenant por cabeceras o subdominio
-        if (context.Request.Headers.TryGetValue("X-Tenant-ID", out var tenantIdHeader) && !string.IsNullOrWhiteSpace(tenantIdHeader))
+        // 1. Extraer y validar cabeceras de tenant
+        if (context.Request.Headers.TryGetValue("X-Tenant-ID", out var tenantIdHeader))
         {
-            candidateTenantId = tenantIdHeader.ToString().Trim();
+            var rawId = tenantIdHeader.ToString().Trim();
+            if (string.IsNullOrWhiteSpace(rawId) || rawId.Length > 100 || !TenantIdentifierRegex.IsMatch(rawId))
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync("{\"error\": \"El header X-Tenant-ID contiene un formato o valor inválido.\"}");
+                return;
+            }
+            candidateTenantId = rawId;
         }
-        else if (context.Request.Headers.TryGetValue("X-Tenant-Slug", out var slugHeader) && !string.IsNullOrWhiteSpace(slugHeader))
+
+        if (context.Request.Headers.TryGetValue("X-Tenant-Slug", out var slugHeader))
         {
-            candidateSlug = slugHeader.ToString().Trim().ToLowerInvariant();
+            var rawSlug = slugHeader.ToString().Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(rawSlug) || rawSlug.Length > 100 || !TenantIdentifierRegex.IsMatch(rawSlug))
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync("{\"error\": \"El header X-Tenant-Slug contiene un formato o valor inválido.\"}");
+                return;
+            }
+            candidateSlug = rawSlug;
         }
-        else
+
+        // Si no se proporcionaron cabeceras, extraer por subdominio
+        if (candidateTenantId == null && candidateSlug == null)
         {
             var host = context.Request.Host.Host;
             var parts = host.Split('.');
             if (parts.Length > 2)
             {
                 var subdomain = parts[0].ToLowerInvariant();
-                if (subdomain is not ("www" or "api" or "admin" or "localhost"))
+                if (subdomain is not ("www" or "api" or "admin" or "localhost") && TenantIdentifierRegex.IsMatch(subdomain))
                 {
                     candidateSlug = subdomain;
                 }
@@ -49,7 +69,7 @@ public class TenantResolverMiddleware
             else if (parts.Length == 2 && parts[1] == "localhost")
             {
                 var subdomain = parts[0].ToLowerInvariant();
-                if (subdomain is not ("www" or "api" or "admin"))
+                if (subdomain is not ("www" or "api" or "admin") && TenantIdentifierRegex.IsMatch(subdomain))
                 {
                     candidateSlug = subdomain;
                 }
@@ -59,7 +79,28 @@ public class TenantResolverMiddleware
         // 2. Resolver la entidad Tienda en PlatformDbContext
         ElohimShop.Domain.Platform.Tienda? tienda = null;
 
-        if (!string.IsNullOrEmpty(candidateTenantId))
+        if (!string.IsNullOrEmpty(candidateTenantId) && !string.IsNullOrEmpty(candidateSlug))
+        {
+            tienda = await dbContext.Tiendas
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => (t.Id == candidateTenantId || t.Slug == candidateTenantId) &&
+                                          (t.Slug == candidateSlug || t.Id == candidateSlug));
+
+            if (tienda == null)
+            {
+                var idExists = await dbContext.Tiendas.IgnoreQueryFilters().AnyAsync(t => t.Id == candidateTenantId || t.Slug == candidateTenantId);
+                var slugExists = await dbContext.Tiendas.IgnoreQueryFilters().AnyAsync(t => t.Slug == candidateSlug || t.Id == candidateSlug);
+                if (idExists && slugExists)
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync("{\"error\": \"Los headers X-Tenant-ID y X-Tenant-Slug no corresponden a la misma tienda.\"}");
+                    return;
+                }
+            }
+        }
+        else if (!string.IsNullOrEmpty(candidateTenantId))
         {
             tienda = await dbContext.Tiendas
                 .IgnoreQueryFilters()
@@ -91,7 +132,7 @@ public class TenantResolverMiddleware
             return;
         }
 
-        // 3. Cross-Tenant OAuth Guard (Verificación de aislamiento para usuarios autenticados)
+        // 3. Cross-Tenant Guard (Verificación estricta de pertenencia al tenant para usuarios autenticados)
         if (tienda is not null && context.User.Identity?.IsAuthenticated == true)
         {
             var userTenantId = context.User.FindFirstValue("tienda_id");
@@ -103,12 +144,51 @@ public class TenantResolverMiddleware
                                string.Equals(esSuperAdminClaim, "true", StringComparison.OrdinalIgnoreCase) ||
                                SuperAdminHelper.IsSuperAdminEmail(email, configuration["SuperAdmin:Email"]);
 
-            if (!isSuperAdmin && !string.IsNullOrEmpty(userTenantId) && !string.Equals(userTenantId, tienda.Id, StringComparison.OrdinalIgnoreCase))
+            if (!isSuperAdmin)
             {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync("{\"error\": \"Acceso denegado: el token de autenticación no corresponde a la tienda o tenant solicitado.\"}");
-                return;
+                bool belongsToTenant = false;
+                string? effectiveUserId = null;
+                string? effectiveRole = null;
+
+                // 1) Si el token actual fue emitido para este tenant
+                if (!string.IsNullOrEmpty(userTenantId) && string.Equals(userTenantId, tienda.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    belongsToTenant = true;
+                }
+                // 2) Soporte multi-tienda: el usuario puede pertenecer a múltiples tiendas con su misma cuenta/correo
+                else if (!string.IsNullOrWhiteSpace(email))
+                {
+                    var storeUser = await dbContext.Users
+                        .IgnoreQueryFilters()
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Email == email.Trim().ToLowerInvariant()
+                                               && u.TiendaId == tienda.Id
+                                               && u.Estado);
+
+                    if (storeUser != null)
+                    {
+                        belongsToTenant = true;
+                        effectiveUserId = storeUser.Id;
+                        effectiveRole = storeUser.RolStaff ?? storeUser.TipoUsuario;
+                    }
+                }
+
+                if (!belongsToTenant)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync("{\"error\": \"Acceso denegado: el usuario no pertenece a la tienda solicitada.\"}");
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(effectiveUserId))
+                {
+                    context.Items["EffectiveUserId"] = effectiveUserId;
+                }
+                if (!string.IsNullOrEmpty(effectiveRole))
+                {
+                    context.Items["EffectiveUserRole"] = effectiveRole;
+                }
             }
 
             var tenantContext = new TenantContext
