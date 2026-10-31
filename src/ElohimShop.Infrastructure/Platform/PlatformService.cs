@@ -871,47 +871,10 @@ public class PlatformService : IPlatformService
             return null;
         }
 
-        static int ObtenerRangoEstadoPago(string? estado) => estado?.ToLowerInvariant().Trim() switch
-        {
-            "pendiente" => 1,
-            "pagado" => 2,
-            "cancelado" => 99,
-            _ => 1
-        };
-
-        static int ObtenerRangoEstadoDespacho(string? estado) => estado?.ToLowerInvariant().Trim() switch
-        {
-            "pendiente" or "procesando" => 1,
-            "despachado" or "entregado" or "completado" => 2,
-            "cancelado" => 99,
-            _ => 1
-        };
-
         var nuevoEstadoPago = string.IsNullOrWhiteSpace(request.EstadoPago) ? null : request.EstadoPago.Trim().ToLowerInvariant();
         var nuevoEstadoDespacho = string.IsNullOrWhiteSpace(request.EstadoDespacho) ? null : request.EstadoDespacho.Trim().ToLowerInvariant();
 
-        // 2. Validación Forward-Only (No permitir regresar a estados anteriores)
-        if (nuevoEstadoPago is not null && nuevoEstadoPago != "cancelado")
-        {
-            int rangoActualPago = ObtenerRangoEstadoPago(reservacion.EstadoPago);
-            int rangoNuevoPago = ObtenerRangoEstadoPago(nuevoEstadoPago);
-
-            if (rangoNuevoPago < rangoActualPago)
-            {
-                throw new InvalidOperationException($"No está permitido regresar el estado de pago de '{reservacion.EstadoPago}' a '{nuevoEstadoPago}'. Violación de reglas de negocio.");
-            }
-        }
-
-        if (nuevoEstadoDespacho is not null && nuevoEstadoDespacho != "cancelado")
-        {
-            int rangoActualDespacho = ObtenerRangoEstadoDespacho(reservacion.EstadoDespacho);
-            int rangoNuevoDespacho = ObtenerRangoEstadoDespacho(nuevoEstadoDespacho);
-
-            if (rangoNuevoDespacho < rangoActualDespacho)
-            {
-                throw new InvalidOperationException($"No está permitido regresar el estado de despacho de '{reservacion.EstadoDespacho}' a '{nuevoEstadoDespacho}'. Violación de reglas de negocio.");
-            }
-        }
+        // 2. Validación de flujo flexible para Kanban (permitir cambios de estado sin restricciones)
 
         // 3. Manejo de Cancelación y Reversión a Inventario / Stock
         bool seCancela = (nuevoEstadoPago == "cancelado" || nuevoEstadoDespacho == "cancelado");
